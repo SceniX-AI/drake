@@ -70,6 +70,8 @@ int DoMain() {
               status->finger_position[i] * kFingerSdkToUrdf;
         }
         demo.HandleStatus(jaco_q);
+        // only publish an IK plan after receiving the first status message. 
+        // i.e., the plan is published only once.
         if (demo.status_count() == 1) {
           std::optional<lcmt_robot_plan> plan = demo.Plan(pose);
           if (plan.has_value()) {
