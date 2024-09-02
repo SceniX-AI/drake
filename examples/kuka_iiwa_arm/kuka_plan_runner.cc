@@ -90,6 +90,7 @@ class RobotPlanRunner {
           cur_plan_number = plan_number_;
         }
 
+        // divided by 1e6: to convert from microseconds into seconds
         const double cur_traj_time_s =
             static_cast<double>(cur_time_us - start_time_us) / 1e6;
         const auto desired_next = plan_->value(cur_traj_time_s);
@@ -111,6 +112,11 @@ class RobotPlanRunner {
     iiwa_status_ = *status;
   }
 
+  //
+  // Here, it converts the received lcmt_robot_plan into a vector of Eigen::MatrixXd
+  // storing the desired joint positions at each knot point. Using these knot points, 
+  // it constructs a piece-wise polynomal (PiecewisePolynomial) over time.
+  //
   void HandlePlan(const ::lcm::ReceiveBuffer*, const std::string&,
                   const lcmt_robot_plan* plan) {
     std::cout << "New plan received." << std::endl;
@@ -123,6 +129,7 @@ class RobotPlanRunner {
       return;
     }
 
+    // each point in knots is a vector of desired joint positions
     std::vector<Eigen::MatrixXd> knots(plan->num_states,
                                        Eigen::MatrixXd::Zero(kNumJoints, 1));
     for (int i = 0; i < plan->num_states; ++i) {
