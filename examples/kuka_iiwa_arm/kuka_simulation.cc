@@ -168,6 +168,16 @@ int DoMain() {
 
   auto sys = builder.Build();
 
+  // generate the diagram's SVG file (in dot) for visualization
+  // convert dot file int an SVG file using:
+  //   dot -Tsvg diga.to -o diag.svg
+  {
+    auto const dot_string = sys->GetGraphvizString();
+    std::ofstream dot_file("diag.dot");
+    dot_file << dot_string;
+    dot_file.close();
+  }
+
   Simulator<double> simulator(*sys);
 
   simulator.set_publish_every_time_step(false);

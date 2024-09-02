@@ -2,7 +2,7 @@ package drake;
 
 struct lcmt_robot_state
 {
-  int64_t utime;
+  int64_t utime;  // in microseconds
   int16_t num_joints;
   string joint_name[num_joints];
   float joint_position[num_joints];
