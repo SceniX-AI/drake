@@ -1921,7 +1921,11 @@ void MultibodyPlant<T>::EstimatePointContactParameters(
   //  - Consider an estimate of maximum velocities (context dependent).
   // Right now we are being very conservative and use the maximum mass in the
   // system.
-  double mass = 0.0;
+  // double mass = 0.0;
+  // NOTE(Changxi): Switch from mass = 0 to mass = 1E-8. Otherwise, if there is 
+  // no mass given for the entire plant. The mass will end up being 0, and later 
+  // the omega, resulted from dividing by mass, becomes nan.
+  double mass = 1E-8;
   for (BodyIndex body_index(0); body_index < num_bodies(); ++body_index) {
     const RigidBody<T>& body = get_body(body_index);
     mass = std::max(mass, body.default_mass());
