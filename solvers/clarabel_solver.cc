@@ -160,6 +160,9 @@ class SettingsConverter {
     settings_.verbose = solver_options.get_print_to_console();
     // TODO(jwnimmer-tri) Handle get_print_file_name().
 
+    // Clarabel does not support setting the number of threads so we ignore
+    // the kMaxNumThreads option.
+
     // Copy the Clarabel-specific `solver_options` to pending maps.
     pending_options_double_ =
         solver_options.GetOptionsDouble(ClarabelSolver::id());
@@ -211,17 +214,6 @@ class SettingsConverter {
       DRAKE_THROW_UNLESS(option_value >= 0);
     }
     this->SetFromIntMap(x.name(), x.value());
-  }
-  void Visit(const NameValue<clarabel::ClarabelDirectSolveMethods>& x) {
-    DRAKE_THROW_UNLESS(x.name() == std::string{"direct_solve_method"});
-    // TODO(jwnimmer-tri) Add support for this option.
-    // For now it is unsupported and will throw (as an unknown name, below).
-  }
-  void Visit(const NameValue<clarabel::ClarabelCliqueMergeMethods>& x) {
-    DRAKE_THROW_UNLESS(x.name() ==
-                       std::string{"chordal_decomposition_merge_method"});
-    // TODO(jwnimmer-tri) Add support for this option.
-    // For now it is unsupported and will throw (as an unknown name, below).
   }
 
  private:
