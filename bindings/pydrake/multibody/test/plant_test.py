@@ -530,6 +530,9 @@ class TestPlant(unittest.TestCase):
             plant.get_contact_results_output_port(), OutputPort)
         self.assertIsInstance(plant.num_frames(), int)
         self.assertIsInstance(plant.get_body(body_index=world_index()), Body)
+        self.assertEqual(
+            plant.IsAnchored(plant.get_body(body_index=world_index())), True)
+        self.assertEqual(plant.NumBodiesWithName("Link1"), 1)
         self.assertIs(shoulder, plant.get_joint(joint_index=JointIndex(0)))
         self.assertIs(shoulder, plant.get_mutable_joint(
             joint_index=JointIndex(0)))
@@ -623,6 +626,13 @@ class TestPlant(unittest.TestCase):
             T)
         self.assertIsInstance(
             dut.CalcCenterOfMassInBodyFrame(context=context),
+            np.ndarray)
+        self.assertIsInstance(
+            dut.CalcCenterOfMassTranslationalVelocityInWorld(context=context),
+            np.ndarray)
+        self.assertIsInstance(
+            dut.CalcCenterOfMassTranslationalAccelerationInWorld(
+                context=context),
             np.ndarray)
         self.assertIsInstance(
             dut.CalcSpatialInertiaInBodyFrame(context=context),
@@ -3340,6 +3350,13 @@ class TestPlant(unittest.TestCase):
         geometry_id = dut.GetGeometryId(body_id)
         self.assertEqual(dut.GetBodyId(geometry_id), body_id)
         dut.SetWallBoundaryCondition(body_id, [1, 1, -1], [0, 0, 1])
+
+        spatial_inertia = SpatialInertia_[float].SolidCubeWithDensity(1, 1)
+        rigid_body = plant.AddRigidBody("rigid_body", spatial_inertia)
+        dut.AddFixedConstraint(body_A_id=body_id,
+                               body_B=rigid_body,
+                               X_BA=RigidTransform(), shape=Box(1, 1, 1),
+                               X_BG=RigidTransform())
 
         # Verify that a body has been added to the model.
         self.assertEqual(dut.num_bodies(), 1)
