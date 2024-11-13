@@ -796,6 +796,7 @@ class TestGeometryOptimization(unittest.TestCase):
         options.preprocessing_solver_options = SolverOptions()
         options.preprocessing_solver_options.SetOption(
             ClpSolver.id(), "log_level", 3)
+        options.parallelism = True
         self.assertIn("scaling",
                       options.solver_options.GetOptions(ClpSolver.id()))
         self.assertIn("log_level",
@@ -1501,24 +1502,28 @@ class TestCspaceFreePolytope(unittest.TestCase):
                         convex_sets_A=sets_A,
                         convex_sets_B=sets_B,
                         continuous_revolute_joints=[0],
-                        preprocess_bbox=True))
+                        preprocess_bbox=True,
+                        parallelism=Parallelism.Max()))
         outputs.append(
                 mut.ComputePairwiseIntersections(
                         convex_sets_A=sets_A,
                         convex_sets_B=sets_B,
                         continuous_revolute_joints=[0],
                         bboxes_A=bboxes_A,
-                        bboxes_B=bboxes_B))
+                        bboxes_B=bboxes_B,
+                        parallelism=Parallelism.Max()))
         outputs.append(
                 mut.ComputePairwiseIntersections(
                         convex_sets=sets_A,
                         continuous_revolute_joints=[0],
-                        preprocess_bbox=True))
+                        preprocess_bbox=True,
+                        parallelism=Parallelism.Max()))
         outputs.append(
                 mut.ComputePairwiseIntersections(
                         convex_sets=sets_A,
                         continuous_revolute_joints=[0],
-                        bboxes=bboxes_A))
+                        bboxes=bboxes_A,
+                        parallelism=Parallelism.Max()))
         for out in outputs:
             self.assertIsInstance(out, tuple)
             self.assertIsInstance(out[0], list)
