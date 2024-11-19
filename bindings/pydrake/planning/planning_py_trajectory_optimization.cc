@@ -346,6 +346,15 @@ void DefinePlanningTrajectoryOptimization(py::module m) {
     constexpr auto& cls_doc = doc.GcsTrajectoryOptimization;
     py::class_<Class> gcs_traj_opt(m, "GcsTrajectoryOptimization", cls_doc.doc);
 
+    const std::unordered_set<
+        geometry::optimization::GraphOfConvexSets::Transcription>
+        all_transcriptions = {
+            geometry::optimization::GraphOfConvexSets::Transcription::kMIP,
+            geometry::optimization::GraphOfConvexSets::Transcription::
+                kRelaxation,
+            geometry::optimization::GraphOfConvexSets::Transcription::
+                kRestriction};
+
     // Subgraph
     const auto& subgraph_doc = doc.GcsTrajectoryOptimization.Subgraph;
     py::class_<Class::Subgraph>(gcs_traj_opt, "Subgraph", subgraph_doc.doc)
@@ -409,7 +418,92 @@ void DefinePlanningTrajectoryOptimization(py::module m) {
         .def("AddContinuityConstraints",
             &Class::Subgraph::AddContinuityConstraints,
             py::arg("continuity_order"),
-            subgraph_doc.AddContinuityConstraints.doc);
+            subgraph_doc.AddContinuityConstraints.doc)
+        .def("vertex_duration", &Class::Subgraph::vertex_duration,
+            subgraph_doc.vertex_duration.doc)
+        .def("edge_constituent_vertex_durations",
+            &Class::Subgraph::edge_constituent_vertex_durations,
+            subgraph_doc.edge_constituent_vertex_durations.doc)
+        // As in trajectory_optimization_py.cc, we use a lambda to *copy*
+        // the decision variables; otherwise we get dtype=object arrays
+        // cannot be referenced.
+        .def(
+            "vertex_control_points",
+            [](const GcsTrajectoryOptimization::Subgraph& self)
+                -> MatrixX<symbolic::Variable> {
+              return self.vertex_control_points();
+            },
+            subgraph_doc.vertex_control_points.doc)
+        .def(
+            "edge_constituent_vertex_control_points",
+            [](const GcsTrajectoryOptimization::Subgraph& self)
+                -> std::pair<MatrixX<symbolic::Variable>,
+                    MatrixX<symbolic::Variable>> {
+              return self.edge_constituent_vertex_control_points();
+            },
+            subgraph_doc.edge_constituent_vertex_control_points.doc)
+        .def("AddVertexCost",
+            py::overload_cast<const symbolic::Expression&,
+                const std::unordered_set<
+                    geometry::optimization::GraphOfConvexSets::Transcription>&>(
+                &Class::Subgraph::AddVertexCost),
+            py::arg("e"), py::arg("use_in_transcription") = all_transcriptions,
+            subgraph_doc.AddVertexCost.doc_2args_e_use_in_transcription)
+        .def("AddVertexCost",
+            py::overload_cast<const solvers::Binding<solvers::Cost>&,
+                const std::unordered_set<
+                    geometry::optimization::GraphOfConvexSets::Transcription>&>(
+                &Class::Subgraph::AddVertexCost),
+            py::arg("binding"),
+            py::arg("use_in_transcription") = all_transcriptions,
+            subgraph_doc.AddVertexCost.doc_2args_binding_use_in_transcription)
+        .def("AddVertexConstraint",
+            py::overload_cast<const symbolic::Formula&,
+                const std::unordered_set<
+                    geometry::optimization::GraphOfConvexSets::Transcription>&>(
+                &Class::Subgraph::AddVertexConstraint),
+            py::arg("e"), py::arg("use_in_transcription") = all_transcriptions,
+            subgraph_doc.AddVertexConstraint.doc_2args_e_use_in_transcription)
+        .def("AddVertexConstraint",
+            py::overload_cast<const solvers::Binding<solvers::Constraint>&,
+                const std::unordered_set<
+                    geometry::optimization::GraphOfConvexSets::Transcription>&>(
+                &Class::Subgraph::AddVertexConstraint),
+            py::arg("binding"),
+            py::arg("use_in_transcription") = all_transcriptions,
+            subgraph_doc.AddVertexConstraint
+                .doc_2args_binding_use_in_transcription)
+        .def("AddEdgeCost",
+            py::overload_cast<const symbolic::Expression&,
+                const std::unordered_set<
+                    geometry::optimization::GraphOfConvexSets::Transcription>&>(
+                &Class::Subgraph::AddEdgeCost),
+            py::arg("e"), py::arg("use_in_transcription") = all_transcriptions,
+            subgraph_doc.AddEdgeCost.doc_2args_e_use_in_transcription)
+        .def("AddEdgeCost",
+            py::overload_cast<const solvers::Binding<solvers::Cost>&,
+                const std::unordered_set<
+                    geometry::optimization::GraphOfConvexSets::Transcription>&>(
+                &Class::Subgraph::AddEdgeCost),
+            py::arg("binding"),
+            py::arg("use_in_transcription") = all_transcriptions,
+            subgraph_doc.AddEdgeCost.doc_2args_binding_use_in_transcription)
+        .def("AddEdgeConstraint",
+            py::overload_cast<const symbolic::Formula&,
+                const std::unordered_set<
+                    geometry::optimization::GraphOfConvexSets::Transcription>&>(
+                &Class::Subgraph::AddEdgeConstraint),
+            py::arg("e"), py::arg("use_in_transcription") = all_transcriptions,
+            subgraph_doc.AddEdgeConstraint.doc_2args_e_use_in_transcription)
+        .def("AddEdgeConstraint",
+            py::overload_cast<const solvers::Binding<solvers::Constraint>&,
+                const std::unordered_set<
+                    geometry::optimization::GraphOfConvexSets::Transcription>&>(
+                &Class::Subgraph::AddEdgeConstraint),
+            py::arg("binding"),
+            py::arg("use_in_transcription") = all_transcriptions,
+            subgraph_doc.AddEdgeConstraint
+                .doc_2args_binding_use_in_transcription);
 
     // EdgesBetweenSubgraphs
     const auto& subgraph_edges_doc =
@@ -439,7 +533,28 @@ void DefinePlanningTrajectoryOptimization(py::module m) {
             overload_cast_explicit<const std::vector<
                 geometry::optimization::GraphOfConvexSets::Edge*>&>(
                 &Class::EdgesBetweenSubgraphs::Edges),
-            py_rvp::reference_internal, subgraph_edges_doc.Edges.doc);
+            py_rvp::reference_internal, subgraph_edges_doc.Edges.doc)
+        .def("edge_constituent_vertex_durations",
+            &Class::EdgesBetweenSubgraphs::edge_constituent_vertex_durations,
+            subgraph_edges_doc.edge_constituent_vertex_durations.doc)
+        // As in trajectory_optimization_py.cc, we use a lambda to *copy*
+        // the decision variables; otherwise we get dtype=object arrays
+        // cannot be referenced.
+        .def(
+            "edge_constituent_vertex_control_points",
+            [](const GcsTrajectoryOptimization::EdgesBetweenSubgraphs& self)
+                -> std::pair<MatrixX<symbolic::Variable>,
+                    MatrixX<symbolic::Variable>> {
+              return self.edge_constituent_vertex_control_points();
+            },
+            subgraph_edges_doc.edge_constituent_vertex_control_points.doc)
+        .def("AddEdgeCost", &Class::EdgesBetweenSubgraphs::AddEdgeCost,
+            py::arg("e"), py::arg("use_in_transcription") = all_transcriptions,
+            subgraph_edges_doc.AddEdgeCost.doc)
+        .def("AddEdgeConstraint",
+            &Class::EdgesBetweenSubgraphs::AddEdgeConstraint, py::arg("e"),
+            py::arg("use_in_transcription") = all_transcriptions,
+            subgraph_edges_doc.AddEdgeConstraint.doc);
 
     gcs_traj_opt  // BR
         .def(py::init<int, const std::vector<int>&>(), py::arg("num_positions"),
