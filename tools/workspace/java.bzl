@@ -30,7 +30,7 @@ package(default_visibility = ["//visibility:public"])
     else:
         is_local = False
         name = "jar"
-        actual = "@_maven_{}//jar".format(repo_ctx.name)
+        actual = "@drake_java_internal_maven_{}//jar".format(repo_ctx.name)
         build_content += "alias(name = {name}, actual = {actual})\n".format(
             name = repr(name),
             actual = repr(actual),
@@ -80,13 +80,14 @@ def drake_java_import(
     OSs in the list of targets are either "linux" or "osx".
     """
     java_import_external(
-        name = "_maven_{}".format(name),
+        name = "drake_java_internal_maven_{}".format(name),
         licenses = licenses,
         jar_urls = [
             x.format(fulljar = maven_jar)
             for x in mirrors.get("maven")
         ],
         jar_sha256 = maven_jar_sha256,
+        rule_load = """load("@rules_java//java/bazel/rules:bazel_java_import.bzl", "java_import")""",  # noqa
     )
     _internal_drake_java_import(
         name = name,

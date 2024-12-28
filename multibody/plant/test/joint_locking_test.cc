@@ -301,8 +301,22 @@ struct TrajectoryTestConfig {
   DiscreteContactSolver solver{DiscreteContactSolver::kTamsi};
 };
 
+std::ostream& operator<<(std::ostream& out, DiscreteContactSolver solver) {
+  switch (solver) {
+    case DiscreteContactSolver::kTamsi: {
+      out << "TAMSI";
+      break;
+    }
+    case DiscreteContactSolver::kSap: {
+      out << "SAP";
+      break;
+    }
+  }
+  return out;
+}
+
 std::ostream& operator<<(std::ostream& out, const TrajectoryTestConfig& c) {
-  return out << internal::GetStringFromDiscreteContactSolver(c.solver);
+  return out << c.solver;
 }
 
 // Fixture to construct two plants. Each containing a single double pendulum.
@@ -483,10 +497,13 @@ struct FilteredContactResultsConfig {
 
 std::ostream& operator<<(std::ostream& out,
                          const FilteredContactResultsConfig& c) {
-  return out << internal::GetStringFromContactModel(c.contact_model) << "_"
-             << (c.solver.has_value()
-                     ? internal::GetStringFromDiscreteContactSolver(*c.solver)
-                     : std::string{"continuous"});
+  out << internal::GetStringFromContactModel(c.contact_model) << "_";
+  if (c.solver.has_value()) {
+    out << *c.solver;
+  } else {
+    out << "continuous";
+  }
+  return out;
 }
 
 // Utility testing class to construct a plant with three stacked spheres in
@@ -550,8 +567,8 @@ class FilteredContactResultsTest
         CoulombFriction<double>{1.0, 1.0} /* friction */, &ball_props);
 
     // N.B. these properties go unused if the contact model is kPoint.
-    geometry::AddCompliantHydroelasticProperties(
-        0.1 * radius_, hydroelastic_modulus_, &ball_props);
+    geometry::AddCompliantHydroelasticProperties(radius_, hydroelastic_modulus_,
+                                                 &ball_props);
 
     plant_->RegisterCollisionGeometry(ball, X_BS, geometry::Sphere(radius_),
                                       "collision", std::move(ball_props));

@@ -42,7 +42,7 @@ DeformableBodyId DeformableModel<T>::RegisterDeformableBody(
   if constexpr (std::is_same_v<T, double>) {
     /* Register the geometry with SceneGraph. */
     SceneGraph<T>& scene_graph = this->mutable_scene_graph();
-    SourceId source_id = this->plant()->get_source_id().value();
+    SourceId source_id = this->plant().get_source_id().value();
     /* All deformable bodies are registered with the world frame at the moment.
      */
     const FrameId world_frame_id = scene_graph.world_frame_id();
@@ -127,7 +127,7 @@ MultibodyConstraintId DeformableModel<T>::AddFixedConstraint(
   ThrowIfNotDouble(__func__);
   this->ThrowIfSystemResourcesDeclared(__func__);
   ThrowUnlessRegistered(__func__, body_A_id);
-  if (&this->plant()->get_body(body_B.index()) != &body_B) {
+  if (&this->plant().get_body(body_B.index()) != &body_B) {
     throw std::logic_error(
         fmt::format("The rigid body with name {} is not registered with the "
                     "MultibodyPlant owning the deformable model.",
@@ -209,6 +209,32 @@ DeformableModel<T>::GetExternalForces(DeformableBodyId id) const {
 }
 
 template <typename T>
+void DeformableModel<T>::Disable(DeformableBodyId id,
+                                 systems::Context<T>* context) const {
+  DRAKE_THROW_UNLESS(context != nullptr);
+  this->plant().ValidateContext(*context);
+  ThrowUnlessRegistered(__func__, id);
+  context->get_mutable_abstract_parameter(is_enabled_parameter_indexes_.at(id))
+      .set_value(false);
+  /* Set both the accelerations and the velocities to zero, noting that the
+   dofs are stored in the order of q, v, and then a. */
+  context->get_mutable_discrete_state(discrete_state_indexes_.at(id))
+      .get_mutable_value()
+      .tail(2 * fem_models_.at(id)->num_dofs())
+      .setZero();
+}
+
+template <typename T>
+void DeformableModel<T>::Enable(DeformableBodyId id,
+                                systems::Context<T>* context) const {
+  DRAKE_THROW_UNLESS(context != nullptr);
+  this->plant().ValidateContext(*context);
+  ThrowUnlessRegistered(__func__, id);
+  context->get_mutable_abstract_parameter(is_enabled_parameter_indexes_.at(id))
+      .set_value(true);
+}
+
+template <typename T>
 const fem::FemModel<T>& DeformableModel<T>::GetFemModel(
     DeformableBodyId id) const {
   ThrowUnlessRegistered(__func__, id);
@@ -275,6 +301,7 @@ std::unique_ptr<PhysicalModel<double>> DeformableModel<T>::CloneToDouble(
 
     result->reference_positions_ = reference_positions_;
     result->discrete_state_indexes_ = discrete_state_indexes_;
+    result->is_enabled_parameter_indexes_ = is_enabled_parameter_indexes_;
     result->body_id_to_geometry_id_ = body_id_to_geometry_id_;
     result->geometry_id_to_body_id_ = geometry_id_to_body_id_;
     for (const auto& [deformable_id, fem_model] : fem_models_) {
@@ -386,14 +413,14 @@ DeformableModel<T>::BuildLinearVolumetricModelHelper(
 template <typename T>
 void DeformableModel<T>::DoDeclareSystemResources() {
   if (!is_empty()) {
-    if (this->plant()->get_discrete_contact_solver() !=
+    if (this->plant().get_discrete_contact_solver() !=
         DiscreteContactSolver::kSap) {
       throw std::runtime_error(
           "DeformableModel is only supported by the SAP contact solver. "
           "Please use `kSap`, `kLagged`, or `kSimilar` as the discrete contact "
           "approximation for the MultibodyPlant containing deformable bodies.");
     }
-    if (!this->plant()->is_discrete()) {
+    if (!this->plant().is_discrete()) {
       throw std::runtime_error(
           "Deformable body simulation is only supported "
           "with discrete time MultibodyPlant.");
@@ -411,6 +438,8 @@ void DeformableModel<T>::DoDeclareSystemResources() {
     model_state.tail(num_dofs) = default_fem_state->GetAccelerations();
     discrete_state_indexes_.emplace(deformable_id,
                                     this->DeclareDiscreteState(model_state));
+    is_enabled_parameter_indexes_.emplace(
+        deformable_id, this->DeclareAbstractParameter(Value<bool>(true)));
   }
 
   std::sort(body_ids_.begin(), body_ids_.end());
@@ -430,7 +459,7 @@ void DeformableModel<T>::DoDeclareSystemResources() {
   /* Add gravity to each body. */
   for (const auto& [deformable_id, fem_model] : fem_models_) {
     const T& density = body_id_to_density_prefinalize_.at(deformable_id);
-    const Vector3<T>& gravity = this->plant()->gravity_field().gravity_vector();
+    const Vector3<T>& gravity = this->plant().gravity_field().gravity_vector();
     auto gravity_force =
         std::make_unique<GravityForceField<T>>(gravity, density);
     DeformableBodyIndex index = body_id_to_index_.at(deformable_id);

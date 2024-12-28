@@ -72,6 +72,30 @@ drake_py_test(
     deps = [":module_py"],
 )
 
+drake_py_test(
+    name = "workspace_bzlmod_sync_test",
+    srcs = ["workspace_bzlmod_sync_test.py"],
+    allow_import_unittest = True,
+    data = [
+        ":default.bzl",
+        "//:MODULE.bazel",
+        "//:WORKSPACE.bzlmod",
+        "//tools/workspace/bazel_skylib:repository.bzl",
+        "//tools/workspace/build_bazel_apple_support:repository.bzl",
+        "//tools/workspace/platforms:repository.bzl",
+        "//tools/workspace/rules_cc:repository.bzl",
+        "//tools/workspace/rules_java:repository.bzl",
+        "//tools/workspace/rules_license:repository.bzl",
+        "//tools/workspace/rules_rust:repository.bzl",
+        "//tools/workspace/rules_shell:repository.bzl",
+    ],
+    tags = ["lint"],
+    deps = [
+        ":module_py",
+        "@rules_python//python/runfiles",
+    ],
+)
+
 drake_py_binary(
     name = "cmake_configure_file",
     srcs = ["cmake_configure_file.py"],
@@ -83,7 +107,7 @@ _DRAKE_EXTERNAL_PACKAGE_INSTALLS = ["@%s//:install" % p for p in [
     "clp_internal",
     "coinutils_internal",
     "com_jidesoft_jide_oss",
-    "common_robotics_utilities",
+    "common_robotics_utilities_internal",
     "commons_io",
     "curl_internal",
     "fcl_internal",
@@ -104,6 +128,7 @@ _DRAKE_EXTERNAL_PACKAGE_INSTALLS = ["@%s//:install" % p for p in [
     "nlopt_internal",
     "org_apache_xmlgraphics_commons",
     "picosha2_internal",
+    "poisson_disk_sampling_internal",
     "pybind11",
     "qhull_internal",
     "sdformat_internal",

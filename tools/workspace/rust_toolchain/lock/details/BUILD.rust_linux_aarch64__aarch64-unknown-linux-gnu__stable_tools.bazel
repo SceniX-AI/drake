@@ -43,6 +43,8 @@ filegroup(
     srcs = ["bin/cargo"],
     visibility = ["//visibility:public"],
 )
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
 filegroup(
     name = "rustfmt_bin",
     srcs = ["bin/rustfmt"],
@@ -118,4 +120,5 @@ rust_toolchain(
     extra_rustc_flags = [],
     extra_exec_rustc_flags = [],
     opt_level = None,
+    tags = ["rust_version=1.83.0"],
 )

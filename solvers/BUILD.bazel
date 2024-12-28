@@ -314,6 +314,9 @@ drake_cc_library(
     deps = [
         ":solver_id",
     ],
+    implementation_deps = [
+        "//common:overloaded",
+    ],
 )
 
 drake_cc_library(
@@ -749,7 +752,7 @@ drake_cc_library(
         ":choose_best_solver",
         ":ipopt_solver",
         "//common:nice_type_name",
-        "@common_robotics_utilities",
+        "@common_robotics_utilities_internal//:common_robotics_utilities",
     ],
 )
 
