@@ -26,6 +26,7 @@ drake_cc_package_library(
         ":piecewise_trajectory",
         ":stacked_trajectory",
         ":trajectory",
+        ":wrapped_trajectory",
     ],
 )
 
@@ -155,6 +156,7 @@ drake_cc_library(
         "//common:essential",
         "//common:pointer_cast",
         "//math:geometric_transform",
+        "//math:wrap_to",
         "//multibody/math:spatial_algebra",
         "//systems/framework:system_scalar_converter",
     ],
@@ -214,6 +216,17 @@ drake_cc_library(
         "//common:default_scalars",
         "//common:essential",
         "//common:unused",
+        # Remove with deprecation 2025-08-01.
+        "//common:nice_type_name",
+    ],
+)
+
+drake_cc_library(
+    name = "wrapped_trajectory",
+    srcs = ["wrapped_trajectory.cc"],
+    hdrs = ["wrapped_trajectory.h"],
+    deps = [
+        ":trajectory",
     ],
 )
 
@@ -382,6 +395,15 @@ drake_cc_googletest(
     name = "trajectory_test",
     deps = [
         ":trajectory",
+        "//common/test_utilities:expect_throws_message",
+    ],
+)
+
+drake_cc_googletest(
+    name = "wrapped_trajectory_test",
+    deps = [
+        ":function_handle_trajectory",
+        ":wrapped_trajectory",
         "//common/test_utilities:expect_throws_message",
     ],
 )

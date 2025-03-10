@@ -112,7 +112,12 @@ class System : public SystemBase {
 
   // This is just an intentional shadowing of the base class method to return
   // a more convenient type.
-  /** Returns a Context<T> suitable for use with this System<T>. */
+  /** (Advanced) Returns an **uninitialized** Context<T> suitable for use with
+  this System<T>. Most users should use CreateDefaultContext(), instead.
+  @warning The returned context is uninitialized (contains invalid data). It is
+  useful for pre-allocating storage which will later be overwritten (e.g., by
+  SetDefaultContext() or Context<T>::SetTimeStateAndParametersFrom()) and **must
+  not** be used for any calculations until it's been overwritten. */
   std::unique_ptr<Context<T>> AllocateContext() const;
 
   /** Allocates a CompositeEventCollection for this system. The allocated
@@ -141,8 +146,8 @@ class System : public SystemBase {
   /** Returns a ContinuousState of the same size as the continuous_state
   allocated in CreateDefaultContext. The simulator will provide this state
   as the output argument to EvalTimeDerivatives. */
-  virtual std::unique_ptr<ContinuousState<T>> AllocateTimeDerivatives() const
-      = 0;
+  virtual std::unique_ptr<ContinuousState<T>> AllocateTimeDerivatives()
+      const = 0;
 
   /** Returns an Eigen VectorX suitable for use as the output argument to
   the CalcImplicitTimeDerivativesResidual() method. The returned VectorX
@@ -156,8 +161,8 @@ class System : public SystemBase {
   /** Returns a DiscreteValues of the same dimensions as the discrete_state
   allocated in CreateDefaultContext. The simulator will provide this state
   as the output argument to Update. */
-  virtual std::unique_ptr<DiscreteValues<T>> AllocateDiscreteVariables() const
-      = 0;
+  virtual std::unique_ptr<DiscreteValues<T>> AllocateDiscreteVariables()
+      const = 0;
 
   /** This convenience method allocates a context using AllocateContext() and
   sets its default values using SetDefaultContext(). */
@@ -450,14 +455,16 @@ class System : public SystemBase {
     ValidateContext(context);
 
     // The API allows an int but we'll use InputPortIndex internally.
-    if (port_index < 0)
+    if (port_index < 0) {
       ThrowNegativePortIndex(__func__, port_index);
+    }
     const InputPortIndex iport_index(port_index);
 
     const BasicVector<T>* const basic_value =
         EvalBasicVectorInputImpl(__func__, context, iport_index);
-    if (basic_value == nullptr)
+    if (basic_value == nullptr) {
       return nullptr;  // An unconnected port.
+    }
 
     // It's a BasicVector, but we're fussy about the subtype here.
     const Vec<T>* const value = dynamic_cast<const Vec<T>*>(basic_value);
@@ -777,8 +784,7 @@ class System : public SystemBase {
 
   @throws std::exception if it invokes an event handler that returns status
                          indicating failure. */
-  void ExecuteForcedEvents(Context<T>* context,
-                           bool publish = true) const;
+  void ExecuteForcedEvents(Context<T>* context, bool publish = true) const;
 
   /** Determines whether there exists a unique periodic timing (offset and
   period) that triggers one or more discrete update events (and, if so, returns
@@ -801,8 +807,8 @@ class System : public SystemBase {
   timing if it exists, otherwise `nullopt`.
 
   @see EvalUniquePeriodicDiscreteUpdate(), IsDifferenceEquationSystem() */
-  std::optional<PeriodicEventData>
-      GetUniquePeriodicDiscreteUpdateAttribute() const;
+  std::optional<PeriodicEventData> GetUniquePeriodicDiscreteUpdateAttribute()
+      const;
 
   /** If this %System contains a unique periodic timing for discrete update
   events, this function executes the handlers for those periodic events to
@@ -1086,8 +1092,7 @@ class System : public SystemBase {
   // Returns x꜀ if @p target_system equals `this`, nullptr otherwise.
   // Should not be directly called.
   virtual const ContinuousState<T>* DoGetTargetSystemContinuousState(
-      const System<T>& target_system,
-      const ContinuousState<T>* xc) const;
+      const System<T>& target_system, const ContinuousState<T>* xc) const;
 
   // Returns @p events if @p target_system equals `this`, nullptr otherwise.
   // Should not be directly called.
@@ -1236,8 +1241,8 @@ class System : public SystemBase {
   /** Returns true if @p context satisfies all of the registered
   SystemConstraints with tolerance @p tol.  @see
   SystemConstraint::CheckSatisfied. */
-  boolean<T> CheckSystemConstraintsSatisfied(
-      const Context<T>& context, double tol) const;
+  boolean<T> CheckSystemConstraintsSatisfied(const Context<T>& context,
+                                             double tol) const;
 
   /** Returns a copy of the continuous state vector x꜀ into an Eigen
   vector. */
@@ -1364,7 +1369,6 @@ class System : public SystemBase {
   const SystemScalarConverter& get_system_scalar_converter() const;
   //@}
 
-
   //----------------------------------------------------------------------------
   /** @name                Scalar type conversion by template parameter
 
@@ -1428,7 +1432,9 @@ class System : public SystemBase {
   template <typename U>
   std::unique_ptr<System<U>> ToScalarTypeMaybe() const {
     auto result = system_scalar_converter_.Convert<U, T>(*this);
-    if (result) { result->AddExternalConstraints(external_constraints_); }
+    if (result) {
+      result->HandlePostConstructionScalarConversion(*this, result.get());
+    }
     return result;
   }
   //@}
@@ -1453,13 +1459,13 @@ class System : public SystemBase {
   contain event data (event->get_event_data() must not be nullptr) and
   the type of that data must be WitnessTriggeredEventData. */
   virtual void AddTriggeredWitnessFunctionToCompositeEventCollection(
-      Event<T>* event,
-      CompositeEventCollection<T>* events) const = 0;
+      Event<T>* event, CompositeEventCollection<T>* events) const = 0;
 
   // Promote these frequently-used methods so users (and tutorial examples)
   // don't need "this->" everywhere when in templated derived classes.
   // All pre-defined ticket methods should be listed here. They are ordered as
   // they appear in SystemBase to make it easy to check that none are missing.
+  // clang-format off
   using SystemBase::nothing_ticket;
   using SystemBase::time_ticket;
   using SystemBase::accuracy_ticket;
@@ -1488,6 +1494,7 @@ class System : public SystemBase {
   using SystemBase::ke_ticket;
   using SystemBase::pc_ticket;
   using SystemBase::pnc_ticket;
+  // clang-format on
 
   // Don't promote output_port_ticket() since it is for internal use only.
 
@@ -1497,8 +1504,7 @@ class System : public SystemBase {
   // feature. Now we have PerStep events that serve the same purpose.
   // Move this to protected with the other forced events when the Simulator
   // feature is removed.
-  const EventCollection<PublishEvent<T>>&
-  get_forced_publish_events() const {
+  const EventCollection<PublishEvent<T>>& get_forced_publish_events() const {
     DRAKE_DEMAND(forced_publish_events_ != nullptr);
     return *forced_publish_events_;
   }
@@ -1533,8 +1539,8 @@ class System : public SystemBase {
   entry to this function, the context will have already been validated and
   the vector of witness functions will have been validated to be both empty
   and non-null. */
-  virtual void DoGetWitnessFunctions(const Context<T>&,
-      std::vector<const WitnessFunction<T>*>*) const;
+  virtual void DoGetWitnessFunctions(
+      const Context<T>&, std::vector<const WitnessFunction<T>*>*) const;
 
   //----------------------------------------------------------------------------
   /** @name  (Internal use only) Event handler dispatch mechanism
@@ -1745,9 +1751,8 @@ class System : public SystemBase {
 
   The default implementation returns without changing @p events.
   @sa GetPeriodicEvents() */
-  virtual void DoGetPeriodicEvents(
-      const Context<T>& context,
-      CompositeEventCollection<T>* events) const;
+  virtual void DoGetPeriodicEvents(const Context<T>& context,
+                                   CompositeEventCollection<T>* events) const;
 
   /** Implement this method to return any events to be handled before the
   simulator integrates the system's continuous state at each time step.
@@ -1758,9 +1763,8 @@ class System : public SystemBase {
 
   The default implementation returns without changing @p events.
   @sa GetPerStepEvents() */
-  virtual void DoGetPerStepEvents(
-      const Context<T>& context,
-      CompositeEventCollection<T>* events) const;
+  virtual void DoGetPerStepEvents(const Context<T>& context,
+                                  CompositeEventCollection<T>* events) const;
 
   /** Implement this method to return any events to be handled at the
   simulator's initialization step. @p events is cleared in the public
@@ -1771,8 +1775,7 @@ class System : public SystemBase {
   The default implementation returns without changing @p events.
   @sa GetInitializationEvents() */
   virtual void DoGetInitializationEvents(
-      const Context<T>& context,
-      CompositeEventCollection<T>* events) const;
+      const Context<T>& context, CompositeEventCollection<T>* events) const;
 
   /** Override this method for physical systems to calculate the potential
   energy PE currently stored in the configuration provided in the given
@@ -1920,17 +1923,17 @@ class System : public SystemBase {
   }
 
   void set_forced_publish_events(
-  std::unique_ptr<EventCollection<PublishEvent<T>>> forced) {
+      std::unique_ptr<EventCollection<PublishEvent<T>>> forced) {
     forced_publish_events_ = std::move(forced);
   }
 
   void set_forced_discrete_update_events(
-  std::unique_ptr<EventCollection<DiscreteUpdateEvent<T>>> forced) {
+      std::unique_ptr<EventCollection<DiscreteUpdateEvent<T>>> forced) {
     forced_discrete_update_events_ = std::move(forced);
   }
 
   void set_forced_unrestricted_update_events(
-  std::unique_ptr<EventCollection<UnrestrictedUpdateEvent<T>>> forced) {
+      std::unique_ptr<EventCollection<UnrestrictedUpdateEvent<T>>> forced) {
     forced_unrestricted_update_events_ = std::move(forced);
   }
 
@@ -1939,11 +1942,22 @@ class System : public SystemBase {
     return system_scalar_converter_;
   }
 
+  /** (Internal use only) Scalar conversion (e.g., ToAutoDiffXd) will first
+  call the SystemScalarConverter to construct the converted system, and then
+  call this function for any post-construction cleanup. */
+  template <typename U>
+  static void HandlePostConstructionScalarConversion(const System<U>& from,
+                                                     System<T>* to) {
+    DRAKE_DEMAND(to != nullptr);
+    to->AddExternalConstraints(from.external_constraints_);
+  }
+
  private:
   // For any T1 & T2, System<T1> considers System<T2> a friend, so that System
   // can safely and efficiently convert scalar types. See for example
   // System<T>::ToScalarTypeMaybe.
-  template <typename> friend class System;
+  template <typename>
+  friend class System;
 
   // Allocates an input of the leaf type that the System requires on the port
   // specified by @p input_port.  This is final in LeafSystem and Diagram.
@@ -2014,8 +2028,8 @@ class System : public SystemBase {
 
   // This is the computation function for EvalUniquePeriodicDiscreteUpdate()'s
   // cache entry. Throws if an event handler fails.
-  void CalcUniquePeriodicDiscreteUpdate(
-      const Context<T>& context, DiscreteValues<T>* updated) const;
+  void CalcUniquePeriodicDiscreteUpdate(const Context<T>& context,
+                                        DiscreteValues<T>* updated) const;
 
   // The non-inline implementation of get_input_port().
   const InputPort<T>& GetSoleInputPort() const;
@@ -2047,8 +2061,8 @@ class System : public SystemBase {
   // these contain at least one kForced triggered event. For a Diagram, they
   // are DiagramEventCollection, whose leafs are LeafEventCollection with
   // one or more kForced triggered events.
-  std::unique_ptr<EventCollection<PublishEvent<T>>>
-      forced_publish_events_{nullptr};
+  std::unique_ptr<EventCollection<PublishEvent<T>>> forced_publish_events_{
+      nullptr};
   std::unique_ptr<EventCollection<DiscreteUpdateEvent<T>>>
       forced_discrete_update_events_{nullptr};
   std::unique_ptr<EventCollection<UnrestrictedUpdateEvent<T>>>

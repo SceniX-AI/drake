@@ -35,9 +35,8 @@ with other versions of Python. However, these are not supported so if it doesn't
 work for you then please file a pull request with the fix, not a bug report.
 
 ⁽¹⁾ Drake features that perform image rendering (e.g., camera simulation)
-require a working display server.  Most personal computers will have this
-already built in, but some cloud or docker environments may require extra
-setup steps.
+maybe require extra setup. See the
+[troubleshooting](/troubleshooting.html#gl-init) page for details.
 
 ⁽²⁾ CPython is the only Python implementation supported.
 Drake is not tested regularly with Anaconda, so if you are using Anaconda you
@@ -106,7 +105,10 @@ To use Gurobi, you must build Drake from source.
 For Python, refer to
 [Using the Python Bindings](/python_bindings.html#using-the-python-bindings).
 
-For C++, refer to either the
+For C++ sample projects that show how to import Drake as a CMake external
+project, please see our gallery of
+[external examples](https://github.com/RobotLocomotion/drake-external-examples),
+specifically either the
 [example CMake project for apt (deb)](https://github.com/RobotLocomotion/drake-external-examples/tree/main/drake_cmake_installed_apt)
 or the
 [example CMake project for tar.gz download](https://github.com/RobotLocomotion/drake-external-examples/tree/main/drake_cmake_installed).

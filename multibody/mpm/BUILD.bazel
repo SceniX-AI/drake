@@ -16,7 +16,10 @@ drake_cc_package_library(
     deps = [
         ":bspline_weights",
         ":grid_data",
+        ":mass_and_momentum",
         ":particle_data",
+        ":particle_sorter",
+        ":spgrid_flags",
     ],
 )
 
@@ -46,6 +49,16 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "mass_and_momentum",
+    hdrs = [
+        "mass_and_momentum.h",
+    ],
+    deps = [
+        "//common:essential",
+    ],
+)
+
+drake_cc_library(
     name = "particle_data",
     srcs = [
         "particle_data.cc",
@@ -60,8 +73,40 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "particle_sorter",
+    srcs = [
+        "particle_sorter.cc",
+    ],
+    hdrs = [
+        "particle_sorter.h",
+    ],
+    deps = [
+        ":bspline_weights",
+        ":spgrid_flags",
+        "//common:essential",
+        "//math:gradient",
+    ],
+)
+
 # TODO(xuchenhan-tri): when we enable SPGrid in our releases, we also need to
 # install its license file in drake/tools/workspace/BUILD.bazel.
+
+drake_cc_library_linux_only(
+    name = "sparse_grid",
+    srcs = [
+        "sparse_grid.cc",
+    ],
+    hdrs = [
+        "sparse_grid.h",
+    ],
+    deps = [
+        ":grid_data",
+        ":mass_and_momentum",
+        ":particle_sorter",
+        ":spgrid",
+    ],
+)
 
 drake_cc_library_linux_only(
     name = "spgrid",
@@ -71,9 +116,26 @@ drake_cc_library_linux_only(
     hdrs = [
         "spgrid.h",
     ],
+    defines = select({
+        "//tools:using_memcheck": ["DRAKE_MPM_TESTING_LOG2_MAX_GRID_SIZE=5"],
+        "//conditions:default": [],
+    }),
     deps = [
+        ":spgrid_flags",
         "//common:essential",
         "@spgrid_internal",
+    ],
+)
+
+drake_cc_library(
+    name = "spgrid_flags",
+    hdrs = [
+        "spgrid_flags.h",
+    ],
+    deps = [
+        ":bspline_weights",
+        "//common:essential",
+        "//math:gradient",
     ],
 )
 
@@ -95,6 +157,24 @@ drake_cc_googletest(
     name = "particle_data_test",
     deps = [
         ":particle_data",
+        "//common/test_utilities:eigen_matrix_compare",
+    ],
+)
+
+drake_cc_googletest_linux_only(
+    name = "particle_sorter_test",
+    deps = [
+        ":bspline_weights",
+        ":grid_data",
+        ":particle_sorter",
+        ":spgrid",
+    ],
+)
+
+drake_cc_googletest_linux_only(
+    name = "sparse_grid_test",
+    deps = [
+        ":sparse_grid",
         "//common/test_utilities:eigen_matrix_compare",
     ],
 )

@@ -92,9 +92,10 @@ TYPED_TEST(GridDataTest, Reset) {
 
   data.reset();
   EXPECT_TRUE(data.index_or_flag.is_inactive());
-  EXPECT_NE(data.scratch, data.scratch);
-  EXPECT_NE(data.v, data.v);
-  EXPECT_TRUE(std::isnan(data.m));
+  EXPECT_TRUE(data.is_inactive());
+  EXPECT_EQ(data.scratch, Vector3<T>::Zero());
+  EXPECT_EQ(data.v, Vector3<T>::Zero());
+  EXPECT_EQ(data.m, 0);
 }
 
 TYPED_TEST(GridDataTest, Equality) {

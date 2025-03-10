@@ -12,6 +12,7 @@
 #include <fmt/ranges.h>
 
 #include "drake/common/hash.h"
+#include "drake/common/text_logging.h"
 #include "drake/common/unused.h"
 #include "drake/systems/framework/fixed_input_port_value.h"
 
@@ -22,7 +23,7 @@ std::string FmtFunc(const char* func) {
   return fmt::format("System::{}()", func);
 }
 
-}
+}  // namespace
 
 namespace drake {
 namespace systems {
@@ -189,10 +190,10 @@ SystemBase::GraphvizFragment SystemBase::DoGetGraphvizFragment(
   for (int node = 0; node < num_nodes; ++node) {
     DRAKE_DEMAND(split_in_twain || node_id_input == node_id_output);
     const std::string& node_id = (node == 0) ? node_id_input : node_id_output;
-    const int node_num_rows =
-        (split_in_twain && node == 0)   ? num_inputs
-        : (split_in_twain && node == 1) ? num_outputs
-                                        : max_num_inputs_outputs;
+    const int node_num_rows = (split_in_twain && node == 0) ? num_inputs
+                              : (split_in_twain && node == 1)
+                                  ? num_outputs
+                                  : max_num_inputs_outputs;
 
     // Open the node, along with its label table and the table's header row.
     result.fragments.push_back(fmt::format(
@@ -324,10 +325,9 @@ void SystemBase::InitializeContextBase(ContextBase* context_ptr) const {
       !internal::SystemBaseContextBaseAttorney::is_context_base_initialized(
           context));
 
-  internal::SystemBaseContextBaseAttorney::set_system_name(
-      &context, get_name());
-  internal::SystemBaseContextBaseAttorney::set_system_id(
-      &context, system_id_);
+  internal::SystemBaseContextBaseAttorney::set_system_name(&context,
+                                                           get_name());
+  internal::SystemBaseContextBaseAttorney::set_system_id(&context, system_id_);
 
   // Add the independent-source trackers and wire them up appropriately. That
   // includes input ports since their dependencies are external.
@@ -351,8 +351,9 @@ void SystemBase::InitializeContextBase(ContextBase* context_ptr) const {
     // this separate call.
     cache_value.SetInitialValue(entry.Allocate());
 
-    if (entry.is_disabled_by_default())
+    if (entry.is_disabled_by_default()) {
       cache_value.disable_caching();
+    }
   }
 
   // Create the output port trackers yᵢ here. Nothing in this System may
@@ -379,21 +380,22 @@ void SystemBase::CreateSourceTrackers(ContextBase* context_ptr) const {
 
   // Define a lambda to do the repeated work below: create trackers for
   // individual entities and subscribe the group tracker to each of them.
-  auto make_trackers = [&context](
-      DependencyTicket subscriber_ticket,
-      const std::vector<TrackerInfo>& system_ticket_info,
-      void (*add_ticket_to_context)(ContextBase*, DependencyTicket)) {
-    DependencyGraph& graph = context.get_mutable_dependency_graph();
-    DependencyTracker& subscriber =
-        graph.get_mutable_tracker(subscriber_ticket);
+  auto make_trackers =
+      [&context](
+          DependencyTicket subscriber_ticket,
+          const std::vector<TrackerInfo>& system_ticket_info,
+          void (*add_ticket_to_context)(ContextBase*, DependencyTicket)) {
+        DependencyGraph& graph = context.get_mutable_dependency_graph();
+        DependencyTracker& subscriber =
+            graph.get_mutable_tracker(subscriber_ticket);
 
-    for (const auto& info : system_ticket_info) {
-      auto& source_tracker =
-          graph.CreateNewDependencyTracker(info.ticket, info.description);
-      add_ticket_to_context(&context, info.ticket);
-      subscriber.SubscribeToPrerequisite(&source_tracker);
-    }
-  };
+        for (const auto& info : system_ticket_info) {
+          auto& source_tracker =
+              graph.CreateNewDependencyTracker(info.ticket, info.description);
+          add_ticket_to_context(&context, info.ticket);
+          subscriber.SubscribeToPrerequisite(&source_tracker);
+        }
+      };
 
   // Allocate trackers for each discrete variable group xdᵢ, and subscribe
   // the "all discrete variables" tracker xd to those.
@@ -423,6 +425,20 @@ void SystemBase::CreateSourceTrackers(ContextBase* context_ptr) const {
         &context, iport->get_index(), iport->ticket(),
         MakeFixInputPortTypeChecker(iport->get_index()));
   }
+}
+
+void SystemBase::set_parent_service(
+    SystemBase* child,
+    const internal::SystemParentServiceInterface* parent_service) {
+  DRAKE_DEMAND(child != nullptr);
+  if (parent_service != nullptr && child->parent_service_ != nullptr) {
+    throw std::logic_error(fmt::format(
+        "Cannot build subsystem '{}' into Diagram '{}' because it has already "
+        "been built into a different Diagram '{}'",
+        child->GetSystemName(), parent_service->GetParentPathname(),
+        child->parent_service_->GetParentPathname()));
+  }
+  child->parent_service_ = parent_service;
 }
 
 // The only way for a system to evaluate its own input port is if that
@@ -470,9 +486,9 @@ void SystemBase::ThrowNegativePortIndex(const char* func,
 void SystemBase::ThrowInputPortIndexOutOfRange(const char* func,
                                                InputPortIndex port) const {
   throw std::out_of_range(fmt::format(
-      "{}: there is no input port with index {} because there "
-      "are only {} input ports in system {}.",
-      FmtFunc(func),  port, num_input_ports(), GetSystemPathname()));
+      "{}: there is no input port with index {} because there are only {} "
+      "input ports in system {}.",
+      FmtFunc(func), port, num_input_ports(), GetSystemPathname()));
 }
 
 void SystemBase::ThrowOutputPortIndexOutOfRange(const char* func,
@@ -480,36 +496,37 @@ void SystemBase::ThrowOutputPortIndexOutOfRange(const char* func,
   throw std::out_of_range(fmt::format(
       "{}: there is no output port with index {} because there "
       "are only {} output ports in system {}.",
-      FmtFunc(func), port,
-      num_output_ports(), GetSystemPathname()));
+      FmtFunc(func), port, num_output_ports(), GetSystemPathname()));
 }
 
 void SystemBase::ThrowNotAVectorInputPort(const char* func,
                                           InputPortIndex port) const {
   throw std::logic_error(fmt::format(
       "{}: vector port required, but input port '{}' (index {}) was declared "
-          "abstract. Even if the actual value is a vector, use "
-          "EvalInputValue<V> instead for an abstract port containing a vector "
-          "of type V. (System {})",
-      FmtFunc(func),  get_input_port_base(port).get_name(), port,
+      "abstract. Even if the actual value is a vector, use "
+      "EvalInputValue<V> instead for an abstract port containing a vector "
+      "of type V. (System {})",
+      FmtFunc(func), get_input_port_base(port).get_name(), port,
       GetSystemPathname()));
 }
 
 void SystemBase::ThrowInputPortHasWrongType(
     const char* func, InputPortIndex port, const std::string& expected_type,
     const std::string& actual_type) const {
-  ThrowInputPortHasWrongType(
-      func, GetSystemPathname(), port, get_input_port_base(port).get_name(),
-      expected_type, actual_type);
+  ThrowInputPortHasWrongType(func, GetSystemPathname(), port,
+                             get_input_port_base(port).get_name(),
+                             expected_type, actual_type);
 }
 
-void SystemBase::ThrowInputPortHasWrongType(
-    const char* func, const std::string& system_pathname, InputPortIndex port,
-    const std::string& port_name, const std::string& expected_type,
-    const std::string& actual_type) {
+void SystemBase::ThrowInputPortHasWrongType(const char* func,
+                                            const std::string& system_pathname,
+                                            InputPortIndex port,
+                                            const std::string& port_name,
+                                            const std::string& expected_type,
+                                            const std::string& actual_type) {
   throw std::logic_error(fmt::format(
       "{}: expected value of type {} for input port '{}' (index {}) "
-          "but the actual type was {}. (System {})",
+      "but the actual type was {}. (System {})",
       FmtFunc(func), expected_type, port_name, port, actual_type,
       system_pathname));
 }
@@ -518,7 +535,7 @@ void SystemBase::ThrowCantEvaluateInputPort(const char* func,
                                             InputPortIndex port) const {
   throw std::logic_error(
       fmt::format("{}: input port '{}' (index {}) is neither connected nor "
-                      "fixed so cannot be evaluated. (System {})",
+                  "fixed so cannot be evaluated. (System {})",
                   FmtFunc(func), get_input_port_base(port).get_name(), port,
                   GetSystemPathname()));
 }
@@ -551,7 +568,7 @@ void SystemBase::ThrowValidateContextMismatch(
   // this Diagram. In that case, we can provide a more specific error message.
   const ContextBase& root_context = [&context]() -> const ContextBase& {
     const ContextBase* iterator = &context;
-    while (true)  {
+    while (true) {
       const ContextBase* parent =
           internal::SystemBaseContextBaseAttorney::get_parent_base(*iterator);
       if (parent == nullptr) {
@@ -632,8 +649,9 @@ void SystemBase::WarnPortDeprecation(bool is_input, int port_index) const {
   // We hadn't warned yet, so we'll warn now.
   const std::string& description = port->GetFullDescription();
   const std::string& deprecation = port->get_deprecation().value();
-  const char* const message = deprecation.size() ? deprecation.c_str() :
-      "no deprecation details were provided";
+  const char* const message = deprecation.size()
+                                  ? deprecation.c_str()
+                                  : "no deprecation details were provided";
   drake::log()->warn("{} is deprecated: {}", description, message);
 }
 
@@ -652,8 +670,8 @@ namespace internal {
 std::string DiagramSystemBaseAttorney::GetUnsupportedScalarConversionMessage(
     const SystemBase& system, const std::type_info& source_type,
     const std::type_info& destination_type) {
-  return system.GetUnsupportedScalarConversionMessage(
-      source_type, destination_type);
+  return system.GetUnsupportedScalarConversionMessage(source_type,
+                                                      destination_type);
 }
 
 std::vector<std::string> DiagramSystemBaseAttorney::GetGraphvizPortLabels(

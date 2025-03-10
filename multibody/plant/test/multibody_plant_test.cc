@@ -671,7 +671,11 @@ class AcrobotPlantTests : public ::testing::Test {
     const std::string url =
         "package://drake/multibody/benchmarks/acrobot/acrobot.sdf";
     std::tie(plant_, scene_graph_) = AddMultibodyPlantSceneGraph(&builder, 0.0);
-    Parser(plant_).AddModelsFromUrl(url);
+    const std::vector<ModelInstanceIndex> instances =
+        Parser(plant_).AddModelsFromUrl(url);
+    DRAKE_DEMAND(instances.size() == 1);
+    model_instance_ = instances[0];
+
     // Sanity check on the availability of the optional source id before using
     // it.
     DRAKE_DEMAND(plant_->get_source_id() != std::nullopt);
@@ -971,6 +975,8 @@ class AcrobotPlantTests : public ::testing::Test {
   RevoluteJoint<double>* elbow_{nullptr};
   // Input port for the actuation:
   systems::FixedInputPortValue* input_port_{nullptr};
+  // The model instance of the acrobot.
+  ModelInstanceIndex model_instance_{};
 
   // Reference benchmark for verification.
   Acrobot<double> acrobot_benchmark_{Vector3d::UnitZ() /* Plane normal */,
@@ -1133,6 +1139,99 @@ TEST_F(AcrobotPlantTests, SetDefaultState) {
   // Calling SetDefaultContext directly works, too.
   plant_->SetDefaultContext(plant_context_);
   EXPECT_EQ(shoulder_->get_angle(*plant_context_), 4.2);
+}
+
+TEST_F(AcrobotPlantTests, SetPositionWithNonFinites) {
+  VectorX<double> p = VectorX<double>::Zero(plant_->num_positions());
+  ASSERT_GT(p.rows(), 0);
+
+  // First confirm we've got the right context and right size of things.
+  EXPECT_NO_THROW(plant_->SetPositions(plant_context_, p));
+
+  for (double bad : {std::numeric_limits<double>::quiet_NaN(),
+                     std::numeric_limits<double>::infinity()}) {
+    p[0] = bad;
+    EXPECT_THROW(plant_->SetPositions(plant_context_, p), std::exception);
+    EXPECT_THROW(plant_->SetPositions(plant_context_, model_instance_, p),
+                 std::exception);
+    EXPECT_THROW(plant_->SetPositions(*plant_context_,
+                                      &plant_context_->get_mutable_state(),
+                                      model_instance_, p),
+                 std::exception);
+  }
+}
+
+TEST_F(AcrobotPlantTests, SetDefaultPositionWithNonFinites) {
+  VectorX<double> p = VectorX<double>::Zero(plant_->num_positions());
+  ASSERT_GT(p.rows(), 0);
+
+  // First confirm we've got the right size of things.
+  EXPECT_NO_THROW(plant_->SetDefaultPositions(p));
+
+  for (double bad : {std::numeric_limits<double>::quiet_NaN(),
+                     std::numeric_limits<double>::infinity()}) {
+    p[0] = bad;
+    EXPECT_THROW(plant_->SetDefaultPositions(p), std::exception);
+    EXPECT_THROW(plant_->SetDefaultPositions(model_instance_, p),
+                 std::exception);
+  }
+}
+
+TEST_F(AcrobotPlantTests, SetVelocitiesWithNonFinites) {
+  VectorX<double> v = VectorX<double>::Zero(plant_->num_velocities());
+  ASSERT_GT(v.rows(), 0);
+
+  // First confirm we've got the right context and right size of things.
+  EXPECT_NO_THROW(plant_->SetVelocities(plant_context_, v));
+
+  for (double bad : {std::numeric_limits<double>::quiet_NaN(),
+                     std::numeric_limits<double>::infinity()}) {
+    v[0] = bad;
+    EXPECT_THROW(plant_->SetVelocities(plant_context_, v), std::exception);
+    EXPECT_THROW(plant_->SetVelocities(plant_context_, model_instance_, v),
+                 std::exception);
+    EXPECT_THROW(plant_->SetVelocities(*plant_context_,
+                                       &plant_context_->get_mutable_state(),
+                                       model_instance_, v),
+                 std::exception);
+  }
+}
+
+TEST_F(AcrobotPlantTests, SetVelocitiesInArrayWithNonFinites) {
+  VectorX<double> v_all = VectorX<double>::Zero(plant_->num_velocities());
+  ASSERT_GT(v_all.rows(), 0);
+  VectorX<double> v_instance =
+      VectorX<double>::Zero(plant_->num_velocities(model_instance_));
+
+  // First confirm we've got the right context and right size of things.
+  EXPECT_NO_THROW(
+      plant_->SetVelocitiesInArray(model_instance_, v_instance, &v_all));
+
+  for (double bad : {std::numeric_limits<double>::quiet_NaN(),
+                     std::numeric_limits<double>::infinity()}) {
+    v_instance[0] = bad;
+    EXPECT_THROW(
+        plant_->SetVelocitiesInArray(model_instance_, v_instance, &v_all),
+        std::exception);
+  }
+}
+
+TEST_F(AcrobotPlantTests, SetPositionAndVelocitiesWithNonFinites) {
+  VectorX<double> q = VectorX<double>::Zero(plant_->num_multibody_states());
+  ASSERT_GT(q.rows(), 0);
+
+  // First confirm we've got the right context and right size of things.
+  EXPECT_NO_THROW(plant_->SetPositionsAndVelocities(plant_context_, q));
+
+  for (double bad : {std::numeric_limits<double>::quiet_NaN(),
+                     std::numeric_limits<double>::infinity()}) {
+    q[0] = bad;
+    EXPECT_THROW(plant_->SetPositionsAndVelocities(plant_context_, q),
+                 std::exception);
+    EXPECT_THROW(
+        plant_->SetPositionsAndVelocities(plant_context_, model_instance_, q),
+        std::exception);
+  }
 }
 
 GTEST_TEST(MultibodyPlantTest, SetDefaultFreeBodyPose) {
@@ -3931,8 +4030,11 @@ GTEST_TEST(StateSelection, FreeBodiesVsFloatingBaseBodies) {
     const ModelInstanceIndex table_model =
         parser.AddModelsFromUrl(table_sdf_url).at(0);
     const RigidBody<double>& table = plant.GetBodyByName("link", table_model);
-    plant.AddJoint(std::make_unique<PrismaticJoint<double>>(
-        "table", plant.world_frame(), table.body_frame(), Vector3d(1, 1, 1)));
+    const auto& prismatic_joint =
+        plant.AddJoint(std::make_unique<PrismaticJoint<double>>(
+            "table", plant.world_frame(), table.body_frame(),
+            Vector3d(1, 1, 1)));
+    EXPECT_FALSE(prismatic_joint.is_ephemeral());
 
     // Add a mug with no joint. This will become a floating base body at
     // finalization unless we add a joint.
@@ -3941,7 +4043,10 @@ GTEST_TEST(StateSelection, FreeBodiesVsFloatingBaseBodies) {
     if (!mug_in_world) {
       // Explicitly put a 6-dof joint between mug and table, making this a
       // "free" body, but _not_ a floating base body.
-      plant.AddJoint<QuaternionFloatingJoint>("sixdof", table, {}, mug, {});
+      const auto& joint =
+          plant.AddJoint<QuaternionFloatingJoint>("sixdof", table, {}, mug, {});
+      // An explicitly added joint is not ephemeral.
+      EXPECT_FALSE(joint.is_ephemeral());
     }
 
     plant.Finalize();
@@ -4181,6 +4286,7 @@ GTEST_TEST(StateSelection, FloatingBodies) {
 // Verify that we can control what kind of joint is used to connect an
 // unconnected body to World, globally or per-model instance. The default
 // should be QuaternionFloatingJoint, with RpyFloating and Weld as options.
+// These should all be marked "ephemeral" since they aren't user-added.
 //
 // We'll also verify that we can set state (q & v), pose, and velocity using the
 // generic Joint API applied to the floating joints. We'll also check that we
@@ -4222,9 +4328,10 @@ GTEST_TEST(MultibodyPlantTest, BaseBodyJointChoice) {
     EXPECT_EQ(plant->num_positions(), 14);
     EXPECT_EQ(plant->num_velocities(), 12);
 
-    // When base joints are added they are named after the base body.
+    // When ephemeral base joints are added they are named after the base body.
     const Joint<double>& quaternion_joint =
         plant->GetJointByName("InstanceBody");
+    EXPECT_TRUE(quaternion_joint.is_ephemeral());
     auto context = plant->CreateDefaultContext();
     Eigen::Vector<double, 7> set_q;
     set_q << 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7;
@@ -4281,6 +4388,7 @@ GTEST_TEST(MultibodyPlantTest, BaseBodyJointChoice) {
 
     // When base joints are added they are named after the base body.
     const Joint<double>& instance_joint = plant->GetJointByName("InstanceBody");
+    EXPECT_TRUE(instance_joint.is_ephemeral());
     auto context = plant->CreateDefaultContext();
     Vector6d set_q;
     set_q << 0.1, 0.2, 0.3, 0.4, 0.5, 0.6;
@@ -4346,6 +4454,7 @@ GTEST_TEST(MultibodyPlantTest, BaseBodyJointChoice) {
     // We'll use the weld joint to generate some Joint API errors.
     const Joint<double>& weld_joint = plant->GetJointByName("DefaultBody");
     EXPECT_EQ(weld_joint.type_name(), "weld");
+    EXPECT_TRUE(weld_joint.is_ephemeral());
     auto context = plant->CreateDefaultContext();
 
     // SetPositions() and SetVelocities() should work for every joint as

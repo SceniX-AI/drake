@@ -63,7 +63,33 @@ class PyRenderEngine : public py::wrapper<RenderEngine> {
   }
 
   std::unique_ptr<RenderEngine> DoClone() const override {
-    PYBIND11_OVERLOAD_PURE(std::unique_ptr<RenderEngine>, Base, DoClone);
+    throw std::logic_error(
+        "Python subclasses of RenderEngine do not support calling "
+        "Clone<std::unique_ptr>; the C++ code which tried to call "
+        "it needs to be updated to call using shared_ptr instead.");
+  }
+
+  std::shared_ptr<RenderEngine> DoCloneShared() const override {
+    py::gil_scoped_acquire guard;
+    // RenderEngine subclasses in Python must implement cloning by defining
+    // either a __deepcopy__ (preferred) or DoClone (legacy) method. We'll try
+    // DoClone first so it has priority, but if it doesn't exist we'll fall back
+    // to __deepcopy__ and just let the "no such method deepcopy" error message
+    // propagate if both were missing. Because the PYBIND11_OVERLOAD_INT macro
+    // embeds a conditional `return ...;` statement, we must wrap it in lambda
+    // so that we can post-process the return value in case it does return.
+    auto make_python_deepcopy = [&]() -> py::object {
+      PYBIND11_OVERLOAD_INT(py::object, Base, "DoClone");
+      auto deepcopy = py::module_::import("copy").attr("deepcopy");
+      py::object copied = deepcopy(this);
+      if (copied.is_none()) {
+        throw pybind11::type_error(fmt::format(
+            "{}.__deepcopy__ returned None", NiceTypeName::Get(*this)));
+      }
+      return copied;
+    };
+    py::object result = make_python_deepcopy();
+    return make_shared_ptr_from_py_object<RenderEngine>(result);
   }
 
   void DoRenderColorImage(ColorRenderCamera const& camera,
@@ -246,11 +272,12 @@ void DoScalarIndependentDefinitions(py::module m) {
   {
     using Class = RenderEngine;
     const auto& cls_doc = doc.RenderEngine;
-    py::class_<Class, PyRenderEngine> cls(m, "RenderEngine");
+    py::class_<Class, PyRenderEngine, std::shared_ptr<Class>> cls(
+        m, "RenderEngine");
     cls  // BR
         .def(py::init<>(), cls_doc.ctor.doc)
         .def("Clone",
-            static_cast<::std::unique_ptr<Class> (Class::*)() const>(
+            static_cast<std::shared_ptr<Class> (Class::*)() const>(
                 &Class::Clone),
             cls_doc.Clone.doc)
         .def("RegisterVisual",
@@ -391,7 +418,21 @@ void DoScalarIndependentDefinitions(py::module m) {
     DefCopyAndDeepCopy(&cls);
   }
 
-  m.def("MakeRenderEngineVtk", &MakeRenderEngineVtk, py::arg("params"),
+  m.def(
+      "MakeRenderEngineVtk",
+      [](const RenderEngineVtkParams& params) -> RenderEngine* {
+        // Having abandoned the old RobotLocomotion pybind11 branch
+        // with special handling of std::unique_ptr<>, this binding's
+        // return value path started deleting the C++ object and
+        // returning a dead non-null pointer. To avoid that, we
+        // instead explicitly unwrap the pointer here and rely on the
+        // take_ownership return value policy. The take_ownership
+        // policy would be the default policy in this case, but it
+        // seems safer and more clear to apply it explicitly.
+        std::unique_ptr<RenderEngine> result = MakeRenderEngineVtk(params);
+        return result.release();
+      },
+      py::arg("params"), py_rvp::take_ownership,
       doc_geometry.MakeRenderEngineVtk.doc);
 
   {
@@ -405,8 +446,21 @@ void DoScalarIndependentDefinitions(py::module m) {
     DefCopyAndDeepCopy(&cls);
   }
 
-  m.def("MakeRenderEngineGl", &MakeRenderEngineGl,
-      py::arg("params") = RenderEngineGlParams(),
+  m.def(
+      "MakeRenderEngineGl",
+      [](const RenderEngineGlParams& params) -> RenderEngine* {
+        // Having abandoned the old RobotLocomotion pybind11 branch
+        // with special handling of std::unique_ptr<>, this binding's
+        // return value path started deleting the C++ object and
+        // returning a dead non-null pointer. To avoid that, we
+        // instead explicitly unwrap the pointer here and rely on the
+        // take_ownership return value policy. The take_ownership
+        // policy would be the default policy in this case, but it
+        // seems safer and more clear to apply it explicitly.
+        std::unique_ptr<RenderEngine> result = MakeRenderEngineGl(params);
+        return result.release();
+      },
+      py::arg("params") = RenderEngineGlParams(), py_rvp::take_ownership,
       doc_geometry.MakeRenderEngineGl.doc);
 
   {
@@ -420,9 +474,23 @@ void DoScalarIndependentDefinitions(py::module m) {
     DefCopyAndDeepCopy(&cls);
   }
 
-  m.def("MakeRenderEngineGltfClient", &MakeRenderEngineGltfClient,
+  m.def(
+      "MakeRenderEngineGltfClient",
+      [](const RenderEngineGltfClientParams& params) -> RenderEngine* {
+        // Having abandoned the old RobotLocomotion pybind11 branch
+        // with special handling of std::unique_ptr<>, this binding's
+        // return value path started deleting the C++ object and
+        // returning a dead non-null pointer. To avoid that, we
+        // instead explicitly unwrap the pointer here and rely on the
+        // take_ownership return value policy. The take_ownership
+        // policy would be the default policy in this case, but it
+        // seems safer and more clear to apply it explicitly.
+        std::unique_ptr<RenderEngine> result =
+            MakeRenderEngineGltfClient(params);
+        return result.release();
+      },
       py::arg("params") = RenderEngineGltfClientParams(),
-      doc_geometry.MakeRenderEngineGltfClient.doc);
+      py_rvp::take_ownership, doc_geometry.MakeRenderEngineGltfClient.doc);
 
   AddValueInstantiation<RenderLabel>(m);
 }

@@ -89,7 +89,7 @@ class JointActuator final : public MultibodyElement<T> {
   ///   Index specifying one of the degrees of freedom for this joint. The index
   ///   must be in the range `0 <= joint_dof < num_inputs()` or otherwise
   ///   this method will throw an exception.
-  /// @param[in] joint_tau
+  /// @param[in] tau
   ///   Generalized force corresponding to the degree of freedom indicated by
   ///   `joint_dof` to be added into `forces`. Refer to the specific Joint
   ///   sub-class documentation for details on the meaning and units for this
@@ -304,6 +304,13 @@ class JointActuator final : public MultibodyElement<T> {
 
   /// Returns `true` if controller gains have been specified with a call to
   /// set_controller_gains().
+  ///
+  /// @note A controller for a given model instance can be _disarmed_ if the
+  /// desired state input port for its model instance is not connected. When a
+  /// PD controller is disarmed, it has no effect on the MultibodyPlant's
+  /// dynamics, as if there was no PD controller (still, this method returns
+  /// `true` whenever controller gains were set with set_controller_gains().)
+  /// See @ref pd_controllers_and_ports for further details.
   bool has_controller() const { return pd_controller_gains_.has_value(); }
 
   /// Returns a reference to the controller gains for this actuator.

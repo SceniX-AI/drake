@@ -129,9 +129,28 @@ GTEST_TEST(RotationalInertia, MakeFromMomentsAndProductsOfInertia) {
           /* skip_validity_check = */ true));
   EXPECT_FALSE(I.CouldBePhysicallyValid());
 
+  // Check for a thrown exception with proper error message when creating a
+  // rotational inertia with a non-finite moment or product of inertia.
+  std::string expected_message =
+      "[^]*Non-finite moment or product of inertia "
+      "detected in RotationalInertia\\.";
+  constexpr double kNaN = std::numeric_limits<double>::quiet_NaN();
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      RotationalInertia<double>::MakeFromMomentsAndProductsOfInertia(
+          kNaN, Iyy, Izz, /* Ixy = */ 0, /* Ixz = */ 0, /* Iyz = */ 0,
+          /* skip_validity_check = */ false),
+      expected_message);
+
+  constexpr double kInfinity = std::numeric_limits<double>::infinity();
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      RotationalInertia<double>::MakeFromMomentsAndProductsOfInertia(
+          kInfinity, Iyy, Izz, /* Ixy = */ 0, /* Ixz = */ 0, /* Iyz = */ 0,
+          /* skip_validity_check = */ false),
+      expected_message);
+
   // Check for a thrown exception with proper error message when creating an
   // invalid rotational inertia (a principal moment of inertia is negative).
-  std::string expected_message =
+  expected_message =
       "MakeFromMomentsAndProductsOfInertia\\(\\): The rotational inertia\n"
       "\\[ 1  -3  -3\\]\n"
       "\\[-3  13  -6\\]\n"

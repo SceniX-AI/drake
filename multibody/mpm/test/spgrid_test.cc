@@ -11,18 +11,17 @@ namespace internal {
 namespace {
 
 using Vector4d = Eigen::Vector4d;
-const int kLog2MaxGridSize = 5;
 
 struct GridData {
   Vector4d data;
-  void set_zero() { data.setZero(); }
+  void reset() { data.setZero(); }
 };
 
 bool operator==(const GridData& lhs, const GridData& rhs) {
   return lhs.data == rhs.data;
 }
 
-using Offset = SpGrid<GridData, kLog2MaxGridSize>::Offset;
+using Offset = SpGrid<GridData>::Offset;
 
 /* Helper function to help cutting down the amount of boilerplates when looping
  over pads. */
@@ -40,11 +39,11 @@ GTEST_TEST(SpGridTest, Constructor) {
   /* Constructor itself shouldn't allocate memory; memory is only allocated when
    Allocate() is called. */
   test::LimitMalloc guard;
-  SpGrid<GridData, kLog2MaxGridSize> grid;
+  SpGrid<GridData> grid;
 }
 
 GTEST_TEST(SpGridTest, Allocate) {
-  SpGrid<GridData, kLog2MaxGridSize> grid;
+  SpGrid<GridData> grid;
   /* Given the size of GridData (4 * 8 = 32 bytes), each block in SpGrid is of
    size 4 * 4 * 8. We choose offsets such that offset0 and offset1 belong to the
    same block, but offset2 belongs to a separate block. */
@@ -71,7 +70,7 @@ GTEST_TEST(SpGridTest, Allocate) {
 }
 
 GTEST_TEST(SpGridTest, CoordinateOffsetConversion) {
-  SpGrid<GridData, kLog2MaxGridSize> grid;
+  SpGrid<GridData> grid;
 
   /* Test that different coordinates yield different offsets */
   Offset offset0 = grid.CoordinateToOffset(0, 0, 0);
@@ -93,10 +92,14 @@ GTEST_TEST(SpGridTest, CoordinateOffsetConversion) {
   EXPECT_EQ(coordinate1, Vector3<int>(10, 0, 0));
   Vector3<int> coordinate2 = grid.OffsetToCoordinate(offset2);
   EXPECT_EQ(coordinate2, Vector3<int>(0, 10, 0));
+
+  /* Test the two flavors of CoordinateToOffset. */
+  EXPECT_EQ(grid.CoordinateToOffset(Vector3<int>(1, 2, 3)),
+            grid.CoordinateToOffset(1, 2, 3));
 }
 
 GTEST_TEST(SpGridTest, SetPadDataAndGetPadData) {
-  SpGrid<GridData, kLog2MaxGridSize> grid;
+  SpGrid<GridData> grid;
 
   /* Allocate memory for a specific offset to ensure that the pads around it are
    active. */
@@ -125,7 +128,7 @@ GTEST_TEST(SpGridTest, SetPadDataAndGetPadData) {
 }
 
 GTEST_TEST(SpGridTest, IterateGrid) {
-  SpGrid<GridData, kLog2MaxGridSize> grid;
+  SpGrid<GridData> grid;
   std::vector<Offset> offsets = {grid.CoordinateToOffset(0, 0, 0),
                                  grid.CoordinateToOffset(1, 1, 1),
                                  grid.CoordinateToOffset(2, 2, 2)};
@@ -148,7 +151,7 @@ GTEST_TEST(SpGridTest, IterateGrid) {
 }
 
 GTEST_TEST(SpGridTest, IterateGridWithOffset) {
-  SpGrid<GridData, kLog2MaxGridSize> grid;
+  SpGrid<GridData> grid;
   std::vector<Offset> offsets = {grid.CoordinateToOffset(0, 0, 0),
                                  grid.CoordinateToOffset(1, 1, 1),
                                  grid.CoordinateToOffset(2, 2, 2)};
@@ -184,8 +187,8 @@ GTEST_TEST(SpGridTest, IterateGridWithOffset) {
 }
 
 GTEST_TEST(SpGridTest, SetFrom) {
-  SpGrid<GridData, kLog2MaxGridSize> grid1;
-  SpGrid<GridData, kLog2MaxGridSize> grid2;
+  SpGrid<GridData> grid1;
+  SpGrid<GridData> grid2;
 
   /* Allocate memory for grid1 with some offsets and set data */
   std::vector<Offset> offsets = {grid1.CoordinateToOffset(0, 0, 0),

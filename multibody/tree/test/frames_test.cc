@@ -70,16 +70,21 @@ class FrameTests : public ::testing::Test {
     // Frame Q is rigidly attached to P with pose X_PQ.
     frameQ_ = &model->AddFrame<FixedOffsetFrame>("Q", *frameP_, X_PQ_);
 
-    // Frame R is arbitrary, but named.
+    // Frame R is arbitrary, but named and not ephemeral.
     frameR_ = &model->AddFrame<FixedOffsetFrame>(
         "R", *frameP_, math::RigidTransformd::Identity());
+    EXPECT_FALSE(frameR_->is_ephemeral());
 
-    // Frame S is arbitrary, but named and with a specific model instance.
+    // Frame S is arbitrary, but named, with a specific model instance, and
+    // ephemeral.
+    X_WS_ = X_BP_;  // Any non-identity pose will do.
     extra_instance_ = model->AddModelInstance("extra_instance");
-    frameS_ = &model->AddFrame<FixedOffsetFrame>(
-        "S", model->world_frame(), math::RigidTransformd::Identity(),
-        extra_instance_);
+    frameS_ =
+        &model->AddEphemeralFrame(std::make_unique<FixedOffsetFrame<double>>(
+            "S", model->world_frame(), X_WS_, extra_instance_));
     EXPECT_EQ(frameS_->scoped_name().get_full(), "extra_instance::S");
+    EXPECT_TRUE(frameS_->is_ephemeral());
+
     // Ensure that the model instance propagates implicitly.
     frameSChild_ = &model->AddFrame<FixedOffsetFrame>(
         "SChild", *frameS_, math::RigidTransformd::Identity());
@@ -87,6 +92,7 @@ class FrameTests : public ::testing::Test {
 
     // We are done adding modeling elements. Transfer tree to system and get
     // a Context.
+    tree_ptr_ = model.get();
     system_ = std::make_unique<internal::MultibodyTreeSystem<double>>(
         std::move(model));
     context_ = system_->CreateDefaultContext();
@@ -111,6 +117,8 @@ class FrameTests : public ::testing::Test {
  protected:
   std::unique_ptr<internal::MultibodyTreeSystem<double>> system_;
   std::unique_ptr<Context<double>> context_;
+  const internal::MultibodyTree<double>* tree_ptr_{};
+
   // Bodies:
   const RigidBody<double>* bodyB_;
   // Model instances.
@@ -125,6 +133,7 @@ class FrameTests : public ::testing::Test {
   // Poses:
   math::RigidTransformd X_BP_;
   math::RigidTransformd X_PQ_;
+  math::RigidTransformd X_WS_;
   math::RigidTransformd X_FG_;
   math::RigidTransformd X_QF_;
   math::RigidTransformd X_QG_;
@@ -336,6 +345,52 @@ TEST_F(FrameTests, HasFrameNamed) {
     EXPECT_TRUE(tree().HasFrameNamed(frame.name(), frame.model_instance()))
         << frame.name();
   }
+}
+
+TEST_F(FrameTests, ShallowCloneTests) {
+  // Make sure ShallowClone() preserves RigidBodyFrame frameB's properties.
+  const std::unique_ptr<Frame<double>> clone_of_frameB =
+      frameB_->ShallowClone();
+  EXPECT_NE(clone_of_frameB.get(), frameB_);
+  EXPECT_NE(dynamic_cast<const RigidBodyFrame<double>*>(frameB_), nullptr);
+  EXPECT_EQ(clone_of_frameB->name(), frameB_->name());
+  EXPECT_EQ(clone_of_frameB->model_instance(), frameB_->model_instance());
+  EXPECT_FALSE(clone_of_frameB->is_ephemeral());
+
+  // Make sure ShallowClone() preserves FixedOffsetFrame frameS's properties.
+  const std::unique_ptr<Frame<double>> clone_of_frameS =
+      frameS_->ShallowClone();
+  EXPECT_NE(clone_of_frameS.get(), frameS_);
+  EXPECT_EQ(clone_of_frameS->name(), frameS_->name());
+  EXPECT_EQ(clone_of_frameS->model_instance(), frameS_->model_instance());
+  EXPECT_TRUE(clone_of_frameS->is_ephemeral());
+  const auto& downcast_clone =
+      dynamic_cast<const FixedOffsetFrame<double>&>(*clone_of_frameS);
+  EXPECT_TRUE(downcast_clone.GetFixedPoseInBodyFrame().IsExactlyEqualTo(X_WS_));
+}
+
+TEST_F(FrameTests, DeepCloneTests) {
+  auto cloned_tree = tree_ptr_->CloneToScalar<AutoDiffXd>();
+
+  // Make sure CloneToScalar() preserves RigidBodyFrame frameB's properties.
+  const Frame<AutoDiffXd>& clone_of_frameB =
+      cloned_tree->get_frame(frameB_->index());
+  EXPECT_NE(dynamic_cast<const RigidBodyFrame<AutoDiffXd>*>(&clone_of_frameB),
+            nullptr);
+  EXPECT_EQ(clone_of_frameB.name(), frameB_->name());
+  EXPECT_EQ(clone_of_frameB.model_instance(), frameB_->model_instance());
+  EXPECT_FALSE(clone_of_frameB.is_ephemeral());
+
+  // Make sure CloneToScalar() preserves FixedOffsetFrame frameS's properties.
+  const Frame<AutoDiffXd>& clone_of_frameS =
+      cloned_tree->get_frame(frameS_->index());
+  EXPECT_EQ(clone_of_frameS.name(), frameS_->name());
+  EXPECT_EQ(clone_of_frameS.model_instance(), frameS_->model_instance());
+  EXPECT_TRUE(clone_of_frameS.is_ephemeral());
+  const auto& downcast_clone =
+      dynamic_cast<const FixedOffsetFrame<AutoDiffXd>&>(clone_of_frameS);
+  EXPECT_TRUE(downcast_clone.GetFixedPoseInBodyFrame().IsExactlyEqualTo(
+      X_WS_.cast<AutoDiffXd>()));
 }
 
 }  // namespace

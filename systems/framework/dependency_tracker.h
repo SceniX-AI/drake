@@ -13,7 +13,6 @@ trackers. */
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/drake_copyable.h"
-#include "drake/common/text_logging.h"
 #include "drake/systems/framework/cache.h"
 #include "drake/systems/framework/framework_common.h"
 
@@ -136,8 +135,8 @@ class DependencyTracker {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(DependencyTracker);
 
   /** (Internal use only) */
-  using PointerMap = std::unordered_map<const DependencyTracker*,
-                                        const DependencyTracker*>;
+  using PointerMap =
+      std::unordered_map<const DependencyTracker*, const DependencyTracker*>;
 
   /** Returns the human-readable description for this tracker. */
   const std::string& description() const { return description_; }
@@ -182,9 +181,7 @@ class DependencyTracker {
   example, if there are no q's we can improve performance and avoid spurious
   notifications to q-subscribers like configuration_tracker by disabling q's
   tracker. */
-  void suppress_notifications() {
-    suppress_notifications_ = true;
-  }
+  void suppress_notifications() { suppress_notifications_ = true; }
 
   /** Returns true if suppress_notifications() has been called on this
   tracker. */
@@ -334,24 +331,7 @@ class DependencyTracker {
   // final steps until the pointer fixup phase.
   DependencyTracker(DependencyTicket ticket, std::string description,
                     const internal::ContextMessageInterface* owning_subcontext,
-                    CacheEntryValue* cache_value)
-      : ticket_(ticket),
-        description_(std::move(description)),
-        owning_subcontext_(owning_subcontext),  // may be nullptr
-        has_associated_cache_entry_(cache_value != nullptr),
-        cache_value_(cache_value) {
-    // If we can, connect non-cache tracker to the dummy cache entry value now.
-    if (!has_associated_cache_entry_ && owning_subcontext != nullptr)
-      cache_value_ = &owning_subcontext->dummy_cache_entry_value();
-
-    DRAKE_LOGGER_DEBUG(
-        "Tracker #{} '{}' constructed {} invalidation {:#x}{}.", ticket_,
-        description_, has_associated_cache_entry_ ? "with" : "without",
-        size_t(cache_value),
-        has_associated_cache_entry_
-            ? " cache entry " + std::to_string(cache_value->cache_index())
-            : "");
-  }
+                    CacheEntryValue* cache_value);
 
   // Copies the current tracker but with all pointers set to null, and all
   // counters reset to their default-constructed values (0 for statistics, an
@@ -363,8 +343,7 @@ class DependencyTracker {
     clone->has_associated_cache_entry_ = has_associated_cache_entry_;
     // The constructor sets cache_value_ to dummy by default, but that's wrong
     // if there is an associated cache entry. In that case we'll set it later.
-    if (has_associated_cache_entry_)
-      clone->cache_value_ = nullptr;
+    if (has_associated_cache_entry_) clone->cache_value_ = nullptr;
     clone->subscribers_.resize(num_subscribers(), nullptr);
     clone->prerequisites_.resize(num_prerequisites(), nullptr);
     clone->suppress_notifications_ = suppress_notifications_;
@@ -400,7 +379,7 @@ class DependencyTracker {
   void NotifySubscribers(int64_t change_event, int depth) const;
 
   std::string GetSystemPathname() const {
-    DRAKE_DEMAND(owning_subcontext_!= nullptr);
+    DRAKE_DEMAND(owning_subcontext_ != nullptr);
     return owning_subcontext_->GetSystemPathname();
   }
 

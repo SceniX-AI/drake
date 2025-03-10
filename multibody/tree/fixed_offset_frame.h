@@ -7,7 +7,6 @@
 #include "drake/common/default_scalars.h"
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/tree/frame.h"
-#include "drake/multibody/tree/multibody_tree_topology.h"
 
 namespace drake {
 namespace multibody {
@@ -50,7 +49,7 @@ class FixedOffsetFrame final : public Frame<T> {
   ///   value (as a RigidTransform<double>) is provided.
   /// @param[in] model_instance
   ///   The model instance to which this frame belongs to. If unspecified, will
-  ///   use P.body().model_instance().
+  ///   use P.model_instance().
   FixedOffsetFrame(const std::string& name, const Frame<T>& P,
                    const math::RigidTransform<double>& X_PF,
                    std::optional<ModelInstanceIndex> model_instance = {});
@@ -96,15 +95,6 @@ class FixedOffsetFrame final : public Frame<T> {
   }
 
  protected:
-  /// @name Methods to make a clone templated on different scalar types.
-  ///
-  /// These methods provide implementations to the different overrides of
-  /// Frame::DoCloneToScalar().
-  /// The only const argument to these methods is the new MultibodyTree clone
-  /// under construction, which is required to already own the clone to the
-  /// parent frame of the frame being cloned.
-  /// @{
-
   /// @pre The parent frame to this frame already has a clone in `tree_clone`.
   std::unique_ptr<Frame<double>> DoCloneToScalar(
       const internal::MultibodyTree<double>& tree_clone) const override;
@@ -115,7 +105,8 @@ class FixedOffsetFrame final : public Frame<T> {
 
   std::unique_ptr<Frame<symbolic::Expression>> DoCloneToScalar(
       const internal::MultibodyTree<symbolic::Expression>&) const override;
-  /// @}
+
+  std::unique_ptr<Frame<T>> DoShallowClone() const override;
 
   math::RigidTransform<T> DoCalcPoseInBodyFrame(
       const systems::Parameters<T>& parameters) const override;

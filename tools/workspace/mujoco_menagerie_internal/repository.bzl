@@ -6,8 +6,8 @@ def mujoco_menagerie_internal_repository(
     github_archive(
         name = name,
         repository = "google-deepmind/mujoco_menagerie",
-        commit = "bd9709b540d58e1dcf417e4ffeffc7d54318280d",
-        sha256 = "73e4cecf8c2cd92ebfabdecc365d2dfa8ef3dc77ba6994bf6202cecbfd7fa7d7",  # noqa
+        commit = "d3b4507788d70ccc150cf7a5090e99167f6159b1",
+        sha256 = "33b5bea1d0f51dc8457b4c94aa0e7f04ee4f4cd7438831fd74f87e9705097fd2",  # noqa
         build_file = ":package.BUILD.bazel",
         mirrors = mirrors,
     )

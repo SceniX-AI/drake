@@ -580,6 +580,7 @@ class TestPlant(unittest.TestCase):
         cls = type(element)
         self.assertIsInstance(element.index(), get_index_class(cls, T))
         self.assertIsInstance(element.model_instance(), ModelInstanceIndex)
+        self.assertFalse(element.is_ephemeral())
         element.GetParentPlant()
 
     def _test_frame_api(self, T, frame):
@@ -2115,10 +2116,8 @@ class TestPlant(unittest.TestCase):
         def loop_body(make_joint, time_step):
             plant = MultibodyPlant_[T](time_step)
             child = plant.AddRigidBody("Child")
-            joint = make_joint(
-                plant=plant, P=plant.world_frame(), C=child.body_frame())
-            joint_out = plant.AddJoint(joint)
-            self.assertIs(joint, joint_out)
+            joint = plant.AddJoint(joint=make_joint(
+                plant=plant, P=plant.world_frame(), C=child.body_frame()))
             if joint.num_velocities() == 1:
                 self.assertFalse(plant.HasJointActuatorNamed("tau"))
                 self.assertFalse(plant.HasJointActuatorNamed(
