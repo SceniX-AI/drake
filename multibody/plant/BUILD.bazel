@@ -23,6 +23,7 @@ drake_cc_package_library(
         ":desired_state_input",
         ":discrete_contact_data",
         ":discrete_contact_pair",
+        ":distance_constraint_params",
         ":externally_applied_spatial_force",
         ":externally_applied_spatial_force_multiplexer",
         ":force_density_field",
@@ -132,6 +133,7 @@ drake_cc_library(
         ":desired_state_input",
         ":discrete_contact_data",
         ":discrete_contact_pair",
+        ":distance_constraint_params",
         ":externally_applied_spatial_force",
         ":multibody_plant_config",
         ":slicing_and_indexing",
@@ -296,6 +298,21 @@ drake_cc_library(
     ],
     deps = [
         "//common:default_scalars",
+        "//multibody/tree:multibody_tree_indexes",
+    ],
+)
+
+drake_cc_library(
+    name = "distance_constraint_params",
+    srcs = [
+        "distance_constraint_params.cc",
+    ],
+    hdrs = [
+        "distance_constraint_params.h",
+    ],
+    deps = [
+        "//common:default_scalars",
+        "//common:essential",
         "//multibody/tree:multibody_tree_indexes",
     ],
 )
@@ -487,6 +504,13 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "distance_constraint_params_test",
+    deps = [
+        ":distance_constraint_params",
+    ],
+)
+
+drake_cc_googletest(
     name = "sap_driver_test",
     deps = [
         ":compliant_contact_manager_tester",
@@ -549,6 +573,16 @@ drake_cc_googletest(
         ":plant",
         "//common/test_utilities:eigen_matrix_compare",
         "//multibody/parsing",
+    ],
+)
+
+drake_cc_googletest(
+    name = "sap_driver_tendon_constraints_test",
+    deps = [
+        ":compliant_contact_manager_tester",
+        ":plant",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//common/test_utilities:expect_throws_message",
     ],
 )
 

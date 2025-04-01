@@ -383,9 +383,10 @@ MultibodyPlant<T>::MultibodyPlant(const MultibodyPlant<U>& other)
     this->RemoveUnsupportedScalars(*physical_models_);
 
     coupler_constraints_specs_ = other.coupler_constraints_specs_;
-    distance_constraints_specs_ = other.distance_constraints_specs_;
+    distance_constraints_params_ = other.distance_constraints_params_;
     ball_constraints_specs_ = other.ball_constraints_specs_;
     weld_constraints_specs_ = other.weld_constraints_specs_;
+    tendon_constraints_specs_ = other.tendon_constraints_specs_;
 
     adjacent_bodies_collision_filters_ =
         other.adjacent_bodies_collision_filters_;
@@ -435,7 +436,7 @@ std::vector<MultibodyConstraintId> MultibodyPlant<T>::GetConstraintIds() const {
   for (const auto& [id, _] : coupler_constraints_specs_) {
     ids.push_back(id);
   }
-  for (const auto& [id, _] : distance_constraints_specs_) {
+  for (const auto& [id, _] : distance_constraints_params_) {
     ids.push_back(id);
   }
   for (const auto& [id, _] : ball_constraints_specs_) {
@@ -444,6 +445,10 @@ std::vector<MultibodyConstraintId> MultibodyPlant<T>::GetConstraintIds() const {
   for (const auto& [id, _] : weld_constraints_specs_) {
     ids.push_back(id);
   }
+  for (const auto& [id, _] : tendon_constraints_specs_) {
+    ids.push_back(id);
+  }
+
   return ids;
 }
 
@@ -484,8 +489,9 @@ MultibodyConstraintId MultibodyPlant<T>::AddCouplerConstraint(
         "MultibodyPlant models.");
   }
 
-  // TAMSI does not support coupler constraints. For all other solvers, we let
-  // the discrete update manager to throw an exception at finalize time.
+  // TAMSI does not support tendon constraints. We've already confirmed that
+  // this model is discrete. The only remaining discrete solver is SAP, so we
+  // can safely proceed.
   if (get_discrete_contact_solver() == DiscreteContactSolver::kTamsi) {
     throw std::runtime_error(
         "Currently this MultibodyPlant is set to use the TAMSI solver. TAMSI "
@@ -541,20 +547,88 @@ MultibodyConstraintId MultibodyPlant<T>::AddDistanceConstraint(
   const MultibodyConstraintId constraint_id =
       MultibodyConstraintId::get_new_id();
 
-  internal::DistanceConstraintSpec spec{
-      body_A.index(), p_AP,      body_B.index(), p_BQ,
-      distance,       stiffness, damping,        constraint_id};
-  if (!spec.IsValid()) {
-    const std::string msg = fmt::format(
-        "Invalid set of parameters for constraint between bodies '{}' and "
-        "'{}'. distance = {}, stiffness = {}, damping = {}.",
-        body_A.name(), body_B.name(), distance, stiffness, damping);
-    throw std::runtime_error(msg);
-  }
-
-  distance_constraints_specs_[constraint_id] = spec;
+  DistanceConstraintParams params(body_A.index(), p_AP, body_B.index(), p_BQ,
+                                  distance, stiffness, damping);
+  distance_constraints_params_[constraint_id] = params;
 
   return constraint_id;
+}
+
+template <typename T>
+const std::map<MultibodyConstraintId, DistanceConstraintParams>&
+MultibodyPlant<T>::GetDefaultDistanceConstraintParams() const {
+  return distance_constraints_params_;
+}
+
+template <typename T>
+const std::map<MultibodyConstraintId, DistanceConstraintParams>&
+MultibodyPlant<T>::GetDistanceConstraintParams(
+    const systems::Context<T>& context) const {
+  this->ValidateContext(context);
+  return context.get_parameters()
+      .template get_abstract_parameter<internal::DistanceConstraintParamsMap>(
+          parameter_indices_.distance_constraints)
+      .map;
+}
+
+template <typename T>
+std::map<MultibodyConstraintId, DistanceConstraintParams>&
+MultibodyPlant<T>::GetMutableDistanceConstraintParams(
+    systems::Context<T>* context) const {
+  return context->get_mutable_parameters()
+      .template get_mutable_abstract_parameter<
+          internal::DistanceConstraintParamsMap>(
+          parameter_indices_.distance_constraints)
+      .map;
+}
+
+template <typename T>
+const DistanceConstraintParams& MultibodyPlant<T>::GetDistanceConstraintParams(
+    const systems::Context<T>& context, MultibodyConstraintId id) const {
+  this->ValidateContext(context);
+  if (!distance_constraints_params_.contains(id)) {
+    throw std::runtime_error(
+        fmt::format("The constraint id {} does not match any distance "
+                    "constraint registered with this plant. ",
+                    id));
+  }
+  const std::map<MultibodyConstraintId, DistanceConstraintParams>& all_params =
+      GetDistanceConstraintParams(context);
+  DRAKE_ASSERT(all_params.contains(id));
+  return all_params.at(id);
+}
+
+template <typename T>
+void MultibodyPlant<T>::SetDistanceConstraintParams(
+    systems::Context<T>* context, MultibodyConstraintId id,
+    DistanceConstraintParams params) const {
+  DRAKE_THROW_UNLESS(context != nullptr);
+  this->ValidateContext(*context);
+  if (!distance_constraints_params_.contains(id)) {
+    throw std::runtime_error(
+        fmt::format("The constraint id {} does not match any distance "
+                    "constraint registered with this plant. ",
+                    id));
+  }
+
+  if (!has_body(params.bodyA())) {
+    throw std::runtime_error(
+        fmt::format("Index {} provided for body A does not correspond to a "
+                    "rigid body in this MultibodyPlant.",
+                    params.bodyA()));
+  }
+
+  if (!has_body(params.bodyB())) {
+    throw std::runtime_error(
+        fmt::format("Index {} provided for body B does not correspond to a "
+                    "rigid body in this MultibodyPlant.",
+                    params.bodyB()));
+  }
+
+  std::map<MultibodyConstraintId, DistanceConstraintParams>& all_params =
+      GetMutableDistanceConstraintParams(context);
+  DRAKE_ASSERT(all_params.contains(id));
+  all_params.at(id) = std::move(params);
 }
 
 template <typename T>
@@ -644,6 +718,95 @@ MultibodyConstraintId MultibodyPlant<T>::AddWeldConstraint(
 }
 
 template <typename T>
+MultibodyConstraintId MultibodyPlant<T>::AddTendonConstraint(
+    std::vector<JointIndex> joints, std::vector<double> a,
+    std::optional<double> offset, std::optional<double> lower_limit,
+    std::optional<double> upper_limit, std::optional<double> stiffness,
+    std::optional<double> damping) {
+  constexpr double kInf = std::numeric_limits<double>::infinity();
+  // N.B. The manager is set up at Finalize() and therefore we must require
+  // constraints to be added pre-finalize.
+  DRAKE_MBP_THROW_IF_FINALIZED();
+
+  if (!is_discrete()) {
+    throw std::runtime_error(
+        "Currently tendon constraints are only supported for discrete "
+        "MultibodyPlant models.");
+  }
+
+  // TAMSI does not support tendon constraints. For all other solvers, we
+  // let the discrete update manager throw an exception at finalize time.
+  if (get_discrete_contact_solver() == DiscreteContactSolver::kTamsi) {
+    throw std::runtime_error(
+        "Currently this MultibodyPlant is set to use the TAMSI solver. TAMSI "
+        "does not support tendon constraints. Use "
+        "set_discrete_contact_approximation() to set a model approximation "
+        "that uses the SAP solver instead (kSap, kSimilar, or kLagged).");
+  }
+
+  DRAKE_THROW_UNLESS(joints.size() > 0);
+
+  // Detect if `joints` contains a unique set of JointIndex.
+  std::vector<JointIndex> sorted_joints = joints;
+  std::sort(sorted_joints.begin(), sorted_joints.end());
+  auto last = std::unique(sorted_joints.begin(), sorted_joints.end());
+  if (last != sorted_joints.end()) {
+    throw std::runtime_error(
+        "AddTendonConstraint(): Duplicated joint in `joints`. `joints` must be "
+        "a unique set of JointIndex.");
+  }
+
+  DRAKE_THROW_UNLESS(a.size() == joints.size());
+
+  for (int i = 0; i < ssize(joints); ++i) {
+    DRAKE_THROW_UNLESS(this->has_joint(joints[i]));
+    DRAKE_THROW_UNLESS(this->get_joint(joints[i]).num_velocities() == 1);
+  }
+
+  if (!offset.has_value()) {
+    offset = 0.0;
+  }
+
+  if (lower_limit.has_value()) {
+    DRAKE_THROW_UNLESS(*lower_limit < kInf);
+  } else {
+    lower_limit = -kInf;
+  }
+
+  if (upper_limit.has_value()) {
+    DRAKE_THROW_UNLESS(*upper_limit > -kInf);
+  } else {
+    upper_limit = kInf;
+  }
+
+  DRAKE_THROW_UNLESS(*lower_limit != -kInf || *upper_limit != kInf);
+  DRAKE_THROW_UNLESS(*lower_limit <= *upper_limit);
+
+  if (stiffness.has_value()) {
+    DRAKE_THROW_UNLESS(*stiffness > 0.0);
+  } else {
+    stiffness = kInf;
+  }
+
+  if (damping.has_value()) {
+    DRAKE_THROW_UNLESS(*damping >= 0.0);
+  } else {
+    damping = 0.0;
+  }
+
+  const MultibodyConstraintId constraint_id =
+      MultibodyConstraintId::get_new_id();
+
+  internal::TendonConstraintSpec spec{
+      std::move(joints), std::move(a), *offset,  *lower_limit,
+      *upper_limit,      *stiffness,   *damping, constraint_id};
+
+  tendon_constraints_specs_[constraint_id] = spec;
+
+  return constraint_id;
+}
+
+template <typename T>
 void MultibodyPlant<T>::RemoveConstraint(MultibodyConstraintId id) {
   // N.B. The manager and parameters are set up at Finalize() and therefore we
   // must require constraints to be removed pre-finalize.
@@ -651,9 +814,10 @@ void MultibodyPlant<T>::RemoveConstraint(MultibodyConstraintId id) {
 
   int num_removed = 0;
   num_removed += coupler_constraints_specs_.erase(id);
-  num_removed += distance_constraints_specs_.erase(id);
+  num_removed += distance_constraints_params_.erase(id);
   num_removed += ball_constraints_specs_.erase(id);
   num_removed += weld_constraints_specs_.erase(id);
+  num_removed += tendon_constraints_specs_.erase(id);
   if (num_removed != 1) {
     throw std::runtime_error(fmt::format(
         "RemoveConstraint(): The constraint id {} does not match "
@@ -3506,7 +3670,7 @@ void MultibodyPlant<T>::DeclareParameters() {
   for (const auto& [id, spec] : coupler_constraints_specs_) {
     constraint_active_status_map[id] = true;
   }
-  for (const auto& [id, spec] : distance_constraints_specs_) {
+  for (const auto& [id, params] : distance_constraints_params_) {
     constraint_active_status_map[id] = true;
   }
   for (const auto& [id, spec] : ball_constraints_specs_) {
@@ -3515,11 +3679,20 @@ void MultibodyPlant<T>::DeclareParameters() {
   for (const auto& [id, spec] : weld_constraints_specs_) {
     constraint_active_status_map[id] = true;
   }
+  for (const auto& [id, spec] : tendon_constraints_specs_) {
+    constraint_active_status_map[id] = true;
+  }
 
+  // Active status parameters.
   internal::ConstraintActiveStatusMap map_wrapper{constraint_active_status_map};
-
   parameter_indices_.constraint_active_status = systems::AbstractParameterIndex{
       this->DeclareAbstractParameter(drake::Value(map_wrapper))};
+
+  // Constraint parameters.
+  parameter_indices_.distance_constraints =
+      systems::AbstractParameterIndex{this->DeclareAbstractParameter(
+          drake::Value(internal::DistanceConstraintParamsMap{
+              distance_constraints_params_}))};
 }
 
 template <typename T>

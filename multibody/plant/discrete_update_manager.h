@@ -21,6 +21,7 @@
 #include "drake/multibody/plant/discrete_contact_data.h"
 #include "drake/multibody/plant/discrete_contact_pair.h"
 #include "drake/multibody/plant/discrete_step_memory.h"
+#include "drake/multibody/plant/distance_constraint_params.h"
 #include "drake/multibody/plant/geometry_contact_data.h"
 #include "drake/multibody/plant/hydroelastic_contact_info.h"
 #include "drake/multibody/plant/scalar_convertible_component.h"
@@ -320,14 +321,17 @@ class DiscreteUpdateManager : public ScalarConvertibleComponent<T> {
   const std::map<MultibodyConstraintId, internal::CouplerConstraintSpec>&
   coupler_constraints_specs() const;
 
-  const std::map<MultibodyConstraintId, internal::DistanceConstraintSpec>&
-  distance_constraints_specs() const;
+  const std::map<MultibodyConstraintId, DistanceConstraintParams>&
+  GetDistanceConstraintParams(const systems::Context<T>& context) const;
 
   const std::map<MultibodyConstraintId, internal::BallConstraintSpec>&
   ball_constraints_specs() const;
 
   const std::map<MultibodyConstraintId, internal::WeldConstraintSpec>&
   weld_constraints_specs() const;
+
+  const std::map<MultibodyConstraintId, internal::TendonConstraintSpec>&
+  tendon_constraints_specs() const;
 
   const std::map<MultibodyConstraintId, bool>& GetConstraintActiveStatus(
       const systems::Context<T>& context) const;

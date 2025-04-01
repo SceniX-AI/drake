@@ -294,10 +294,11 @@ DiscreteUpdateManager<T>::coupler_constraints_specs() const {
 }
 
 template <typename T>
-const std::map<MultibodyConstraintId, internal::DistanceConstraintSpec>&
-DiscreteUpdateManager<T>::distance_constraints_specs() const {
+const std::map<MultibodyConstraintId, DistanceConstraintParams>&
+DiscreteUpdateManager<T>::GetDistanceConstraintParams(
+    const systems::Context<T>& context) const {
   return MultibodyPlantDiscreteUpdateManagerAttorney<
-      T>::distance_constraints_specs(*plant_);
+      T>::GetDistanceConstraintParams(*plant_, context);
 }
 
 template <typename T>
@@ -312,6 +313,13 @@ const std::map<MultibodyConstraintId, internal::WeldConstraintSpec>&
 DiscreteUpdateManager<T>::weld_constraints_specs() const {
   return MultibodyPlantDiscreteUpdateManagerAttorney<T>::weld_constraints_specs(
       *plant_);
+}
+
+template <typename T>
+const std::map<MultibodyConstraintId, internal::TendonConstraintSpec>&
+DiscreteUpdateManager<T>::tendon_constraints_specs() const {
+  return MultibodyPlantDiscreteUpdateManagerAttorney<
+      T>::tendon_constraints_specs(*plant_);
 }
 
 template <typename T>

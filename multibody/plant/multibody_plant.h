@@ -25,6 +25,7 @@
 #include "drake/multibody/plant/contact_results.h"
 #include "drake/multibody/plant/coulomb_friction.h"
 #include "drake/multibody/plant/desired_state_input.h"
+#include "drake/multibody/plant/distance_constraint_params.h"
 #include "drake/multibody/plant/dummy_physical_model.h"
 #include "drake/multibody/plant/multibody_plant_config.h"
 #include "drake/multibody/plant/physical_model_collection.h"
@@ -78,6 +79,13 @@ struct JointLockingCacheData {
 // type for an abstract parameter.
 struct ConstraintActiveStatusMap {
   std::map<MultibodyConstraintId, bool> map;
+};
+
+// Wrapper struct so that hashing works for a
+// std::map<MultibodyConstraintId, DistanceConstraintParams> packed as a
+// Value parameter in the context.
+struct DistanceConstraintParamsMap {
+  std::map<MultibodyConstraintId, DistanceConstraintParams> map;
 };
 
 // This struct contains the parameters to compute forces to enforce
@@ -1802,7 +1810,8 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// Returns the total number of constraints specified by the user.
   int num_constraints() const {
     return num_coupler_constraints() + num_distance_constraints() +
-           num_ball_constraints() + num_weld_constraints();
+           num_ball_constraints() + num_weld_constraints() +
+           num_tendon_constraints();
   }
 
   /// Returns a list of all constraint identifiers. The returned vector becomes
@@ -1816,7 +1825,7 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
 
   /// Returns the total number of distance constraints specified by the user.
   int num_distance_constraints() const {
-    return ssize(distance_constraints_specs_);
+    return ssize(distance_constraints_params_);
   }
 
   /// Returns the total number of ball constraints specified by the user.
@@ -1825,6 +1834,12 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// Returns the total number of weld constraints specified by the user.
   int num_weld_constraints() const { return ssize(weld_constraints_specs_); }
 
+  /// Returns the total number of tendon constraints specified by the
+  /// user.
+  int num_tendon_constraints() const {
+    return ssize(tendon_constraints_specs_);
+  }
+
   /// (Internal use only) Returns the coupler constraint specification
   /// corresponding to `id`
   /// @throws if `id` is not a valid identifier for a coupler constraint.
@@ -1832,15 +1847,6 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
       MultibodyConstraintId id) const {
     DRAKE_THROW_UNLESS(coupler_constraints_specs_.contains(id));
     return coupler_constraints_specs_.at(id);
-  }
-
-  /// (Internal use only) Returns the distance constraint specification
-  /// corresponding to `id`
-  /// @throws if `id` is not a valid identifier for a distance constraint.
-  const internal::DistanceConstraintSpec& get_distance_constraint_specs(
-      MultibodyConstraintId id) const {
-    DRAKE_THROW_UNLESS(distance_constraints_specs_.contains(id));
-    return distance_constraints_specs_.at(id);
   }
 
   /// (Internal use only)  Returns the ball constraint specification
@@ -1861,20 +1867,21 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
     return weld_constraints_specs_.at(id);
   }
 
+  /// (Internal use only)  Returns the tendon constraint specification
+  /// corresponding to `id`
+  /// @throws if `id` is not a valid identifier for a tendon constraint.
+  const internal::TendonConstraintSpec& get_tendon_constraint_specs(
+      MultibodyConstraintId id) const {
+    DRAKE_THROW_UNLESS(tendon_constraints_specs_.contains(id));
+    return tendon_constraints_specs_.at(id);
+  }
+
   /// (Internal use only)  Returns a reference to the all of the coupler
   /// constraints in this plant as a map from MultibodyConstraintId to
   /// CouplerConstraintSpec.
   const std::map<MultibodyConstraintId, internal::CouplerConstraintSpec>&
   get_coupler_constraint_specs() const {
     return coupler_constraints_specs_;
-  }
-
-  /// (Internal use only) Returns a reference to the all of the distance
-  /// constraints in this plant as a map from MultibodyConstraintId to
-  /// DistanceConstraintSpec.
-  const std::map<MultibodyConstraintId, internal::DistanceConstraintSpec>&
-  get_distance_constraint_specs() const {
-    return distance_constraints_specs_;
   }
 
   /// (Internal use only) Returns a reference to all of the ball constraints in
@@ -1889,6 +1896,14 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   const std::map<MultibodyConstraintId, internal::WeldConstraintSpec>&
   get_weld_constraint_specs() const {
     return weld_constraints_specs_;
+  }
+
+  /// (Internal use only) Returns a reference to the all of the tendon
+  /// constraints in this plant as a map from MultibodyConstraintId to
+  /// TendonConstraintSpec.
+  const std::map<MultibodyConstraintId, internal::TendonConstraintSpec>&
+  get_tendon_constraint_specs() const {
+    return tendon_constraints_specs_;
   }
 
   /// Returns the active status of the constraint given by `id` in `context`.
@@ -1969,6 +1984,10 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// is singular in this case. Therefore we require the distance parameter to
   /// be strictly positive.
   ///
+  /// @note When a new context is created, a DistanceConstraintParams is
+  /// initialized to store the parameters passed to this function. Parameters in
+  /// the context can be modified with calls to SetDistanceConstraintParams().
+  ///
   /// @throws std::exception if bodies A and B are the same body.
   /// @throws std::exception if `distance` is not strictly positive.
   /// @throws std::exception if `stiffness` is not positive or zero.
@@ -1984,6 +2003,39 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
       const RigidBody<T>& body_B, const Vector3<double>& p_BQ, double distance,
       double stiffness = std::numeric_limits<double>::infinity(),
       double damping = 0.0);
+
+  /// Returns all default distance constraint parameters, as registered via
+  /// AddDistanceConstraint(). See GetDistanceConstraintParams() and
+  /// SetDistanceConstraintParams() for working with parameters stored in a
+  /// context.
+  const std::map<MultibodyConstraintId, DistanceConstraintParams>&
+  GetDefaultDistanceConstraintParams() const;
+
+  /// Returns all distance constraint parameters currently stored in `context`.
+  const std::map<MultibodyConstraintId, DistanceConstraintParams>&
+  GetDistanceConstraintParams(const systems::Context<T>& context) const;
+
+  /// Returns a constant reference to the parameters for the distance constraint
+  /// that corresponds to identifier `id`.
+  /// @throws if `id` is not a valid identifier for a distance constraint.
+  const DistanceConstraintParams& GetDistanceConstraintParams(
+      const systems::Context<T>& context, MultibodyConstraintId id) const;
+
+  /// Stores in `context` the parameters `params` for the distance constraint
+  /// with identifier `id`.
+  ///
+  /// @param[in, out] context The plant's context. On output it stores `params`
+  ///                         for the requested distance constraint.
+  /// @param[in]  id          Unique identifier of the constraint.
+  /// @param[in]  params      The new set of parameters to be stored in
+  ///                         `context`.
+  ///
+  /// @throws if `id` is not a valid identifier for a distance constraint.
+  /// @throws if params.bodyA() or params.bodyB() do not correspond to rigid
+  /// bodies in `this` %MultibodyPlant.
+  void SetDistanceConstraintParams(systems::Context<T>* context,
+                                   MultibodyConstraintId id,
+                                   DistanceConstraintParams params) const;
 
   /// Defines a constraint such that point P affixed to body A is coincident at
   /// all times with point Q affixed to body B, effectively modeling a
@@ -2030,6 +2082,94 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   MultibodyConstraintId AddWeldConstraint(
       const RigidBody<T>& body_A, const math::RigidTransform<double>& X_AP,
       const RigidBody<T>& body_B, const math::RigidTransform<double>& X_BQ);
+
+  /// Defines a set of unilateral constraints on the length of an abstract
+  /// tendon defined as:
+  ///
+  ///   l(q) = aᵀ⋅q + offset ∈ ℝ
+  ///
+  /// where **q** is the configuration of the model, **a** is a vector of
+  /// coefficients, and **offset** a scalar offset. This constraint imposes:
+  ///
+  ///   lₗ ≤ l(q) ≤ lᵤ
+  ///
+  /// where **lₗ** and **lᵤ** are lower and upper bounds, respectively. Both
+  /// limits are not strictly required. At most one of **lₗ** or **lᵤ** may be
+  /// infinite (−∞ for **lₗ** and ∞ for **lᵤ**), indicating no lower or upper
+  /// limit, respectively.
+  ///
+  /// For finite `stiffness` and `damping`, this constraint is modeled by
+  /// compliant spring-like forces:
+  ///
+  ///  fₗ = −stiffness⋅(l - lₗ) − damping⋅dl(q)/dt \n
+  ///  fᵤ = −stiffness⋅(lᵤ - l) + damping⋅dl(q)/dt
+  ///
+  /// that act to keep the length within bounds. If the user provided stiffness
+  /// is either omitted or set to ∞, this constraint is modeled as close to
+  /// rigid as possible by the underlying solver.
+  ///
+  /// @note The coefficients in a are expected to have units such that the
+  /// abstract length l(q) has consistent units (either meters or radians) and
+  /// it is up to the user to maintain consistency in these units. The
+  /// (optionally user provided) `stiffness` and `damping` are expected to have
+  /// consistent units such that their products have units of the corresponding
+  /// generalized force. E.g. N/m for `stiffness` and N⋅s/m for `damping` when l
+  /// has units of m, so that **fₗ** and **fᵤ** have units of N.
+  ///
+  /// @note Any joint involved in this constraint can still be actuated.
+  ///
+  /// @note See the MuJoCo model documentation for details the equivalent
+  /// concept of a "fixed" tendon:
+  /// https://mujoco.readthedocs.io/en/stable/XMLreference.html#tendon-fixed
+  ///
+  /// @param[in] joints Non-empty vector of single-dof joint indices where the
+  /// configuration, qᵢ, of joints[i] corresponds to the entry a[i].
+  /// @param[in] a Non-empty vector of coefficients where a[i]
+  /// corresponds to the configuration, qᵢ, of joints[i].
+  /// @param[in] offset (optional) Scalar length offset in either [m] or [rad].
+  /// If std::nullopt, it is set to 0.
+  /// @param[in] lower_limit (optional) Lower bound on l in either [m] or [rad].
+  /// If std::nullopt, it is set to −∞.
+  /// @param[in] upper_limit Upper bound on l in either [m] or [rad]. If
+  /// std::nullopt, it is set to ∞.
+  /// @param[in] stiffness (optional) Constraint stiffness in either [N/m] or
+  /// [N⋅m/rad]. If std::nullopt, its default value is set to ∞ to model a rigid
+  /// constraint.
+  /// @param[in] damping (optional) Constraint damping in either [N⋅s/m] or
+  /// [N⋅m⋅rad/s]. If std::nullopt, it is set to 0 to model a non-dissipative
+  /// constraint.
+  ///
+  /// @warning Because of a restriction in the SAP solver, **at most** two
+  /// kinematic trees can be represented by the joints in `joints`. This
+  /// violation is only detected after the simulation has been started, in which
+  /// case the solver will throw an exception when trying to add the constraint.
+  ///
+  /// @pre `joints.size() > 0`
+  /// @pre `joints` contains no duplicates.
+  /// @pre `a.size() == joints.size()`
+  /// @pre `index ∈ joints` is a valid (non-removed) index to a joint in this
+  /// plant.
+  /// @pre `get_joint(index).%num_velocities() == 1` for each index in `joints`.
+  /// @pre `lower_limit < ∞` (if not std::nullopt).
+  /// @pre `upper_limit > -∞` (if not std::nullopt).
+  /// @pre At least one of `lower_limit` and `upper_limit` are finite.
+  /// @pre `lower_limit ≤ upper_limit` (if not std::nullopt).
+  /// @pre `stiffness > 0` (if not std::nullopt).
+  /// @pre `damping >= 0` (if not std::nullopt).
+  ///
+  /// @throws std::exception if the %MultibodyPlant has already been finalized.
+  /// @throws std::exception if `this` %MultibodyPlant is not a discrete model
+  /// (`is_discrete() == false`).
+  /// @throws std::exception if `this` %MultibodyPlant's underlying contact
+  /// solver is not SAP. (i.e. `get_discrete_contact_solver() !=
+  /// DiscreteContactSolver::kSap`).
+  MultibodyConstraintId AddTendonConstraint(std::vector<JointIndex> joints,
+                                            std::vector<double> a,
+                                            std::optional<double> offset,
+                                            std::optional<double> lower_limit,
+                                            std::optional<double> upper_limit,
+                                            std::optional<double> stiffness,
+                                            std::optional<double> damping);
 
   /// Removes the constraint `id` from the plant. Note that this will _not_
   /// remove constraints registered directly with DeformableModel.
@@ -4829,6 +4969,11 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// @see AddRigidBody().
   int num_bodies() const { return internal_tree().num_bodies(); }
 
+  /// Returns `true` if plant has a rigid body with unique index `body_index`.
+  bool has_body(BodyIndex body_index) const {
+    return internal_tree().has_body(body_index);
+  }
+
   /// Returns a constant reference to the body with unique index `body_index`.
   /// @throws std::exception if `body_index` does not correspond to a body in
   /// this model.
@@ -5558,6 +5703,7 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   // when the plant declares parameters.
   struct ParameterIndices {
     systems::AbstractParameterIndex constraint_active_status;
+    systems::AbstractParameterIndex distance_constraints;
   };
 
   // Constructor to bridge testing from MultibodyTree to MultibodyPlant.
@@ -6072,6 +6218,10 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
         .map;
   }
 
+  // Helper to get mutable parameters for all distance constraints.
+  std::map<MultibodyConstraintId, DistanceConstraintParams>&
+  GetMutableDistanceConstraintParams(systems::Context<T>* context) const;
+
   // Removes `this` MultibodyPlant's ability to convert to the scalar types
   // unsupported by the given `component`.
   void RemoveUnsupportedScalars(
@@ -6247,9 +6397,9 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   std::map<MultibodyConstraintId, internal::CouplerConstraintSpec>
       coupler_constraints_specs_;
 
-  // Map of distance constraints specifications.
-  std::map<MultibodyConstraintId, internal::DistanceConstraintSpec>
-      distance_constraints_specs_;
+  // Map of default distance constraints parameters.
+  std::map<MultibodyConstraintId, DistanceConstraintParams>
+      distance_constraints_params_;
 
   // Map of ball constraint specifications.
   std::map<MultibodyConstraintId, internal::BallConstraintSpec>
@@ -6258,6 +6408,10 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   // Map of weld constraint specifications.
   std::map<MultibodyConstraintId, internal::WeldConstraintSpec>
       weld_constraints_specs_;
+
+  // Map of tendon constraint specifications.
+  std::map<MultibodyConstraintId, internal::TendonConstraintSpec>
+      tendon_constraints_specs_;
 
   // Whether to apply collsion filters to adjacent bodies at Finalize().
   bool adjacent_bodies_collision_filters_{
