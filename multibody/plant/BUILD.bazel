@@ -140,6 +140,7 @@ drake_cc_library(
         ":tamsi_solver",
         "//common:default_scalars",
         "//common:essential",
+        "//common:parallelism",
         "//common:unused",
         "//geometry:geometry_ids",
         "//geometry:geometry_roles",
@@ -873,6 +874,10 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "multibody_plant_reaction_forces_test",
     timeout = "moderate",
+    data = [
+        "test/box.vtk",
+        "test/deformable_box.sdf",
+    ],
     deps = [
         ":plant",
         "//common/test_utilities:eigen_matrix_compare",
@@ -880,6 +885,7 @@ drake_cc_googletest(
         "//geometry:drake_visualizer",
         "//lcm",
         "//math:geometric_transform",
+        "//multibody/parsing",
         "//multibody/plant:contact_results_to_lcm",
         "//systems/analysis:implicit_euler_integrator",
         "//systems/analysis:simulator",
@@ -1022,6 +1028,7 @@ drake_cc_googletest(
 
 drake_cc_googletest(
     name = "deformable_driver_contact_test",
+    data = ["test/box.vtk"],
     deps = [
         ":multibody_plant_core",
         "//common/test_utilities:eigen_matrix_compare",
@@ -1031,6 +1038,7 @@ drake_cc_googletest(
 
 drake_cc_googletest(
     name = "deformable_driver_contact_kinematics_test",
+    data = ["test/box.vtk"],
     deps = [
         ":multibody_plant_config_functions",
         ":multibody_plant_core",
@@ -1060,6 +1068,7 @@ drake_cc_googletest(
 
 drake_cc_googletest(
     name = "deformable_integration_test",
+    timeout = "moderate",
     deps = [
         ":multibody_plant_config_functions",
         ":multibody_plant_core",

@@ -1370,22 +1370,12 @@ class TestMathematicalProgram(unittest.TestCase):
         dut.SetOption(solver_id=solver_id, key="float_key", value=1.0)
         dut.SetOption(solver_id=solver_id, key="int_key", value=2)
         dut.SetOption(solver_id=solver_id, key="str_key", value="3")
-        with catch_drake_warnings(expected_count=1):
-            dut.SetOption(solver_id=solver_id, solver_option="dep_float_key",
-                          option_value=4.0)
-        with catch_drake_warnings(expected_count=1):
-            dut.SetOption(solver_id=solver_id, solver_option="dep_int_key",
-                          option_value=5)
-        with catch_drake_warnings(expected_count=1):
-            dut.SetOption(solver_id=solver_id, solver_option="dep_str_key",
-                          option_value="6")
         dut.SetOption(CSO.kPrintToConsole, True)
         dut.SetOption(CSO.kPrintFileName, "print.log")
         dut.SetOption(CSO.kStandaloneReproductionFileName, "repro.txt")
         dut.SetOption(CSO.kMaxThreads, 4)
         expected_dummy = {
             "float_key": 1.0, "int_key": 2, "str_key": "3",
-            "dep_float_key": 4.0, "dep_int_key": 5, "dep_str_key": "6",
         }
         expected_common = {
             CSO.kPrintToConsole: True,

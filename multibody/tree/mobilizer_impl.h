@@ -29,7 +29,10 @@ Every concrete Mobilizer derived from MobilizerImpl must implement the
 following (ideally inline) methods (some have defaults; see below). Note that
 these are not virtual methods so we have to document them here in a comment
 rather than as declarations in the header file. The code won't compile if
-any mobilizer fails to implement the non-defaulted methods.
+any mobilizer fails to implement the non-defaulted methods. These are const
+member functions (rather than static members) so are permitted to depend on
+mobilizer-specific data members, though in many cases they don't require any
+such data.
 
 @note The coordinate pointers q and v are guaranteed to point to the kNq or kNv
 state variables for the particular mobilizer. They are only 8-byte aligned so be
@@ -55,6 +58,10 @@ careful when interpreting them as Eigen vectors for computation purposes.
   // Compose X_FB = X_FM ⋅ X_MB, optimized for the known structure of X_FM.
   RigidTransform<T> pre_multiply_by_X_FM(const RigidTransform<T>& X_FM,
                                          const RigidTransform<T>& X_MB) const;
+
+  // Returns v_F = R_FM ⋅ v_M (re-express vector).
+  Vector3<T> apply_R_FM(const RotationMatrix<T>& R_FM,
+                        const Vector3<T>& v_M) const;
 
   // Returns V_FM_F = H_FM_F(q)⋅v.
   SpatialVelocity<T> calc_V_FM(const T* q,
@@ -192,6 +199,18 @@ class MobilizerImpl : public Mobilizer<T> {
       const math::RigidTransform<T>& X_MB) const {
     const math::RigidTransform<T> X_FB = X_FM * X_MB;
     return X_FB;
+  }
+
+  // N.B. no default implementations possible for calc_X_FM() and update_X_FM()
+  // here. However, a minimal implementation for update_X_FM() in a concrete
+  // mobilizer is just *X_FM = calc_X_FM(q).
+
+  // Returns v_F = R_FM ⋅ v_M (re-express). The default implementation
+  // treats R_FM as fully general and performs this in 15 flops. Mobilizers
+  // that know more about the structure of their R_FM should override.
+  Vector3<T> apply_R_FM(const math::RotationMatrix<T>& R_FM,
+                        const Vector3<T>& v_M) const {
+    return R_FM * v_M;
   }
 
  protected:

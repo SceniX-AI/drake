@@ -121,6 +121,7 @@ TEST_F(CurvilinearMobilizerTest, CalcAcrossMobilizerTransform) {
   mobilizer_->update_X_FM(&new_distance, &fast_X_FM);
   EXPECT_TRUE(fast_X_FM.IsNearlyEqualTo(X_FM, kTol));
 
+  TestApplyR_FM(X_FM, *mobilizer_);
   TestPrePostMultiplyByX_FM(X_FM, *mobilizer_);
 }
 
@@ -251,6 +252,16 @@ TEST_F(CurvilinearMobilizerTest, KinematicMapping) {
   MatrixX<double> Nplus(1, 1);
   mobilizer_->CalcNplusMatrix(*context_, &Nplus);
   EXPECT_EQ(Nplus(0, 0), 1.0);
+
+  // Ensure Ṅ(q,q̇) = 1x1 zero matrix.
+  MatrixX<double> NDot(1, 1);
+  mobilizer_->CalcNDotMatrix(*context_, &NDot);
+  EXPECT_EQ(NDot(0, 0), 0.0);
+
+  // Ensure Ṅ⁺(q,q̇) = 1x1 zero matrix.
+  MatrixX<double> NplusDot(1, 1);
+  mobilizer_->CalcNplusDotMatrix(*context_, &NplusDot);
+  EXPECT_EQ(NplusDot(0, 0), 0.0);
 }
 
 }  // namespace

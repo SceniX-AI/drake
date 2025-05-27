@@ -13,6 +13,7 @@ drake_cc_package_library(
     name = "iris",
     visibility = ["//visibility:public"],
     deps = [
+        ":iris_common",
         ":iris_from_clique_cover",
         ":iris_zo",
     ],
@@ -39,16 +40,27 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "iris_common",
+    srcs = ["iris_common.cc"],
+    hdrs = ["iris_common.h"],
+    deps = [
+        "//common:name_value",
+        "//geometry:meshcat",
+        "//multibody/rational:rational_forward_kinematics",
+        "//solvers:mathematical_program",
+    ],
+)
+
+drake_cc_library(
     name = "iris_zo",
     srcs = ["iris_zo.cc"],
     hdrs = ["iris_zo.h"],
     deps = [
-        "//common:parallelism",
-        "//common/symbolic:expression",
-        "//geometry:meshcat",
+        ":iris_common",
         "//geometry/optimization:convex_set",
-        "//multibody/rational:rational_forward_kinematics",
         "//planning:collision_checker",
+    ],
+    implementation_deps = [
         "//solvers:choose_best_solver",
         "//solvers:clarabel_solver",
         "//solvers:gurobi_solver",
@@ -56,8 +68,6 @@ drake_cc_library(
         "//solvers:mosek_solver",
         "//solvers:osqp_solver",
         "//solvers:solve",
-    ],
-    implementation_deps = [
         "@common_robotics_utilities_internal//:common_robotics_utilities",
     ],
 )
@@ -105,6 +115,7 @@ drake_cc_googletest(
         "no_lsan",
     ],
     deps = [
+        ":iris_test_utilities",
         ":iris_zo",
         "//common/symbolic:expression",
         "//common/test_utilities:expect_throws_message",
@@ -116,6 +127,23 @@ drake_cc_googletest(
         "//planning:robot_diagram_builder",
         "//planning:scene_graph_collision_checker",
         "//solvers",
+    ],
+)
+
+drake_cc_library(
+    name = "iris_test_utilities",
+    testonly = 1,
+    srcs = ["test/iris_test_utilities.cc"],
+    hdrs = ["test/iris_test_utilities.h"],
+    deps = [
+        "//common/test_utilities:maybe_pause_for_user",
+        "//geometry/optimization:convex_set",
+        "//geometry/test_utilities:meshcat_environment",
+        "//multibody/plant",
+        "//multibody/rational:rational_forward_kinematics",
+        "//planning:collision_checker",
+        "//planning:robot_diagram_builder",
+        "//planning:scene_graph_collision_checker",
     ],
 )
 

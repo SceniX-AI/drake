@@ -8,6 +8,18 @@ For first-time users, we strongly suggest using one of the pre-compiled binaries
 described on our [installation](/installation.html) page. This page explains how
 to build Drake from source, which is somewhat more challenging.
 
+# Obtaining the Source Code
+
+Drake's source code is available on [GitHub](https://github.com/RobotLocomotion/drake).
+
+In addition to the code on `master`, the source code archives
+are published for each release at
+`https://github.com/RobotLocomotion/drake/releases/download/drake-<version>-src.tar.gz`
+with corresponding .sha256 and .sha512 checksums.
+This mirrors GitHub's source code archive available at
+`https://github.com/RobotLocomotion/drake/archive/refs/tags/v<version>.tar.gz`,
+but checksums are provided for additional stability.
+
 # Supported Configurations
 
 The following table shows the configurations and platforms that Drake
@@ -22,10 +34,10 @@ officially supports when building from source:
 
 | Operating System ⁽¹⁾               | Architecture | Python ⁽²⁾ | Bazel | CMake | C/C++ Compiler ⁽³⁾           | Java       |
 |------------------------------------|--------------|------------|-------|-------|------------------------------|------------|
-| Ubuntu 22.04 LTS (Jammy Jellyfish) | x86_64       | 3.10       | 8.1   | 3.22  | GCC 11 (default) or Clang 15 | OpenJDK 11 |
-| Ubuntu 24.04 LTS (Noble Numbat)    | x86_64       | 3.12       | 8.1   | 3.28  | GCC 13 (default) or Clang 15 | OpenJDK 21 |
-| macOS Sonoma (14)                  | arm64        | 3.13       | 8.1   | 4.0   | Apple LLVM 16 (Xcode 16)     | OpenJDK 23 |
-| macOS Sequoia (15)                 | arm64        | 3.13       | 8.1   | 4.0   | Apple LLVM 16 (Xcode 16)     | OpenJDK 23 |
+| Ubuntu 22.04 LTS (Jammy Jellyfish) | x86_64       | 3.10       | 8.2   | 3.22  | GCC 11 (default) or Clang 15 | OpenJDK 11 |
+| Ubuntu 24.04 LTS (Noble Numbat)    | x86_64       | 3.12       | 8.2   | 3.28  | GCC 13 (default) or Clang 15 | OpenJDK 21 |
+| macOS Sonoma (14)                  | arm64        | 3.13       | 8.2   | 4.0   | Apple LLVM 16 (Xcode 16)     | OpenJDK 23 |
+| macOS Sequoia (15)                 | arm64        | 3.13       | 8.2   | 4.0   | Apple LLVM 16 (Xcode 16)     | OpenJDK 23 |
 
 "Official support" means that we have Continuous Integration test coverage to
 notice regressions, so if it doesn't work for you then please file a bug report.

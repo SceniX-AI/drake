@@ -64,6 +64,7 @@ TEST_F(WeldMobilizerTest, CalcAcrossMobilizerTransform) {
   weld_body_to_world_->update_X_FM(&q_dummy, &fast_X_FM);
   EXPECT_TRUE(fast_X_FM.IsExactlyIdentity());
 
+  TestApplyR_FM(X_FM, *weld_body_to_world_);
   TestPrePostMultiplyByX_FM(X_FM, *weld_body_to_world_);
 }
 
@@ -110,6 +111,8 @@ TEST_F(WeldMobilizerTest, KinematicMapping) {
   MatrixX<double> N(0, 0);
   weld_body_to_world_->CalcNMatrix(*context_, &N);
   weld_body_to_world_->CalcNplusMatrix(*context_, &N);
+  weld_body_to_world_->CalcNDotMatrix(*context_, &N);
+  weld_body_to_world_->CalcNplusDotMatrix(*context_, &N);
 }
 
 // Since the functions involved are no-ops, MapUsesN and MapUsesNPlus
