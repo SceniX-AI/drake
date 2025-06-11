@@ -956,9 +956,6 @@ on deformable bodies.
      instead of dynamic geometry. This is an optimization and the API, and
      pre/post-finalize conditions should not change. -->
 
-@warning Subclassing MultibodyPlant is deprecated; it will be marked `final`
-or or after 2025-05-01.
-
 @anchor mbp_table_of_contents
 
 @anchor mbp_references
@@ -976,7 +973,7 @@ or or after 2025-05-01.
 @tparam_default_scalar
 @ingroup systems */
 template <typename T>
-class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
+class MultibodyPlant final : public internal::MultibodyTreeSystem<T> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MultibodyPlant);
 
@@ -4653,25 +4650,25 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
         frame_A, frame_E, Jq_p_AoBi_E);
   }
 
-  /// Calculates J𝑠_v_ACcm_E, point Ccm's translational velocity Jacobian in
-  /// frame A with respect to "speeds" 𝑠, expressed in frame E, where point CCm
-  /// is the center of mass of the system of all non-world bodies contained in
+  /// Calculates J𝑠_v_AScm_E, point Scm's translational velocity Jacobian in
+  /// frame A with respect to "speeds" 𝑠, expressed in frame E, where point Scm
+  /// is the center of mass of the system S of all non-world bodies contained in
   /// `this` MultibodyPlant.
   /// @param[in] context contains the state of the model.
   /// @param[in] with_respect_to Enum equal to JacobianWrtVariable::kQDot or
-  /// JacobianWrtVariable::kV, indicating whether the Jacobian `J𝑠_v_ACcm_E` is
+  /// JacobianWrtVariable::kV, indicating whether the Jacobian `J𝑠_v_AScm_E` is
   /// partial derivatives with respect to 𝑠 = q̇ (time-derivatives of generalized
   /// positions) or with respect to 𝑠 = v (generalized velocities).
   /// @param[in] frame_A The frame in which the translational velocity
-  /// v_ACcm and its Jacobian J𝑠_v_ACcm are measured.
-  /// @param[in] frame_E The frame in which the Jacobian J𝑠_v_ACcm is
+  /// v_AScm and its Jacobian J𝑠_v_AScm are measured.
+  /// @param[in] frame_E The frame in which the Jacobian J𝑠_v_AScm is
   /// expressed on output.
-  /// @param[out] Js_v_ACcm_E Point Ccm's translational velocity Jacobian in
+  /// @param[out] Js_v_AScm_E Point Scm's translational velocity Jacobian in
   /// frame A with respect to speeds 𝑠 (𝑠 = q̇ or 𝑠 = v), expressed in frame E.
-  /// J𝑠_v_ACcm_E is a 3 x n matrix, where n is the number of elements in 𝑠.
+  /// J𝑠_v_AScm_E is a 3 x n matrix, where n is the number of elements in 𝑠.
   /// The Jacobian is a function of only generalized positions q (which are
   /// pulled from the context).
-  /// @throws std::exception if CCm does not exist, which occurs if there
+  /// @throws std::exception if Scm does not exist, which occurs if there
   /// are no massive bodies in MultibodyPlant (except world_body()).
   /// @throws std::exception if mₛ ≤ 0 (where mₛ is the mass of all non-world
   /// bodies contained in `this` MultibodyPlant).
@@ -4680,37 +4677,37 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   void CalcJacobianCenterOfMassTranslationalVelocity(
       const systems::Context<T>& context, JacobianWrtVariable with_respect_to,
       const Frame<T>& frame_A, const Frame<T>& frame_E,
-      EigenPtr<Matrix3X<T>> Js_v_ACcm_E) const {
+      EigenPtr<Matrix3X<T>> Js_v_AScm_E) const {
     this->ValidateContext(context);
-    DRAKE_DEMAND(Js_v_ACcm_E != nullptr);
+    DRAKE_DEMAND(Js_v_AScm_E != nullptr);
     internal_tree().CalcJacobianCenterOfMassTranslationalVelocity(
-        context, with_respect_to, frame_A, frame_E, Js_v_ACcm_E);
+        context, with_respect_to, frame_A, frame_E, Js_v_AScm_E);
   }
 
-  /// Calculates J𝑠_v_ACcm_E, point Ccm's translational velocity Jacobian in
-  /// frame A with respect to "speeds" 𝑠, expressed in frame E, where point CCm
-  /// is the center of mass of the system of all non-world bodies contained in
+  /// Calculates J𝑠_v_AScm_E, point Scm's translational velocity Jacobian in
+  /// frame A with respect to "speeds" 𝑠, expressed in frame E, where point Scm
+  /// is the center of mass of the system S of all non-world bodies contained in
   /// model_instances.
   /// @param[in] context contains the state of the model.
   /// @param[in] model_instances Vector of selected model instances.  If a model
   /// instance is repeated in the vector (unusual), it is only counted once.
   /// @param[in] with_respect_to Enum equal to JacobianWrtVariable::kQDot or
-  /// JacobianWrtVariable::kV, indicating whether the Jacobian `J𝑠_v_ACcm_E` is
+  /// JacobianWrtVariable::kV, indicating whether the Jacobian `J𝑠_v_AScm_E` is
   /// partial derivatives with respect to 𝑠 = q̇ (time-derivatives of generalized
   /// positions) or with respect to 𝑠 = v (generalized velocities).
   /// @param[in] frame_A The frame in which the translational velocity
-  /// v_ACcm and its Jacobian J𝑠_v_ACcm are measured.
-  /// @param[in] frame_E The frame in which the Jacobian J𝑠_v_ACcm is
+  /// v_AScm and its Jacobian J𝑠_v_AScm are measured.
+  /// @param[in] frame_E The frame in which the Jacobian J𝑠_v_AScm is
   /// expressed on output.
-  /// @param[out] Js_v_ACcm_E Point Ccm's translational velocity Jacobian in
+  /// @param[out] Js_v_AScm_E Point Scm's translational velocity Jacobian in
   /// frame A with respect to speeds 𝑠 (𝑠 = q̇ or 𝑠 = v), expressed in frame E.
-  /// J𝑠_v_ACcm_E is a 3 x n matrix, where n is the number of elements in 𝑠.
+  /// J𝑠_v_AScm_E is a 3 x n matrix, where n is the number of elements in 𝑠.
   /// The Jacobian is a function of only generalized positions q (which are
   /// pulled from the context).
   /// @throws std::exception if mₛ ≤ 0 (where mₛ is the mass of all non-world
   /// bodies contained in model_instances).
   /// @throws std::exception if model_instances is empty or only has world body.
-  /// @note The world_body() is ignored.  J𝑠_v_ACcm_ = ∑ (mᵢ Jᵢ) / mₛ, where
+  /// @note The world_body() is ignored.  J𝑠_v_AScm_ = ∑ (mᵢ Jᵢ) / mₛ, where
   /// mₛ = ∑ mᵢ, mᵢ is the mass of the iᵗʰ body contained in model_instances,
   /// and Jᵢ is Bᵢcm's translational velocity Jacobian in frame A, expressed in
   /// frame E (Bᵢcm is the center of mass of the iᵗʰ body).
@@ -4720,12 +4717,12 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
       const systems::Context<T>& context,
       const std::vector<ModelInstanceIndex>& model_instances,
       JacobianWrtVariable with_respect_to, const Frame<T>& frame_A,
-      const Frame<T>& frame_E, EigenPtr<Matrix3X<T>> Js_v_ACcm_E) const {
+      const Frame<T>& frame_E, EigenPtr<Matrix3X<T>> Js_v_AScm_E) const {
     this->ValidateContext(context);
-    DRAKE_DEMAND(Js_v_ACcm_E != nullptr);
+    DRAKE_DEMAND(Js_v_AScm_E != nullptr);
     internal_tree().CalcJacobianCenterOfMassTranslationalVelocity(
         context, model_instances, with_respect_to, frame_A, frame_E,
-        Js_v_ACcm_E);
+        Js_v_AScm_E);
   }
   /// @} <!-- Jacobian_functions -->
 
@@ -5100,11 +5097,22 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
       const RigidBody<T>& body) const;
 
   /// Returns all bodies whose kinematics are transitively affected by the given
-  /// vector of Joints. The affected bodies are returned in increasing order of
-  /// body indexes. Note that this is a kinematic relationship rather than a
-  /// dynamic one. For example, if one of the inboard joints is a free (6dof)
-  /// joint, the kinematic influence is still felt even though dynamically
-  /// there would be no influence on the outboard body.
+  /// vector of Joints. This is a _kinematic_ relationship rather than a
+  /// dynamic one. It is is inherently a query on the topology of the plant's
+  /// modeled tree. Constraints are likewise not considered.
+  ///
+  /// The affected bodies are returned in increasing order of body indices. A
+  /// body is included in the output if that body's spatial velocity is
+  /// affected by the generalized velocities v of one of the indicated joints.
+  ///
+  /// As such, there are some notable implications:
+  ///
+  ///   1. If a body has an inboard free (6 dof) joint, it will be
+  ///      _kinematically_ affected by joints further inboard, even though there
+  ///      might not be any dynamic influence on that body.
+  ///   2. If the set of joints have no velocities (i.e., they are all weld (0
+  ///      dof) joints), then, by definition, no bodies will be affected.
+  ///
   /// This function can be only be called post-finalize, see Finalize().
   /// @throws std::exception if any of the given joint has an invalid index,
   /// doesn't correspond to a mobilizer, or is welded.

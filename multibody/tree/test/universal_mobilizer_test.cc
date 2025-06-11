@@ -173,6 +173,7 @@ TEST_F(UniversalMobilizerTest, CalcAcrossMobilizerTransform) {
   mobilizer_->update_X_FM(new_angles.data(), &fast_X_FM);
   EXPECT_TRUE(fast_X_FM.IsNearlyEqualTo(X_FM, kTol));
 
+  TestApplyR_FM(X_FM, *mobilizer_);
   TestPrePostMultiplyByX_FM(X_FM, *mobilizer_);
 }
 
@@ -263,6 +264,16 @@ TEST_F(UniversalMobilizerTest, KinematicMapping) {
   MatrixX<double> Nplus(2, 2);
   mobilizer_->CalcNplusMatrix(*context_, &Nplus);
   EXPECT_EQ(Nplus, Matrix2d::Identity());
+
+  // Ensure Ṅ(q,q̇) = 2x2 zero matrix.
+  MatrixX<double> NDot(2, 2);
+  mobilizer_->CalcNDotMatrix(*context_, &NDot);
+  EXPECT_EQ(NDot, Matrix2d::Zero());
+
+  // Ensure Ṅ⁺(q,q̇) = 2x2 zero matrix.
+  MatrixX<double> NplusDot(2, 2);
+  mobilizer_->CalcNplusDotMatrix(*context_, &NplusDot);
+  EXPECT_EQ(NplusDot, Matrix2d::Zero());
 }
 
 TEST_F(UniversalMobilizerTest, MapUsesN) {

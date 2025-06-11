@@ -229,7 +229,8 @@ void MultibodyTreeSystem<T>::Finalize() {
   cache_indexes_.frame_body_poses =
       this->DeclareCacheEntry(
               std::string("frame pose in body frame"),
-              FrameBodyPoseCache<T>(num_frame_body_poses_needed),
+              FrameBodyPoseCache<T>(internal_tree().num_mobods(),
+                                    num_frame_body_poses_needed),
               &MultibodyTreeSystem<T>::CalcFrameBodyPoses,
               {this->all_parameters_ticket()})
           .cache_index();
@@ -338,8 +339,9 @@ void MultibodyTreeSystem<T>::Finalize() {
 
   // Forces, and thus accelerations, are functions not only of state but also
   // inputs. In addition, the forces and accelerations can have extra
-  // user-injected dependencies through MultibodyElement and ForceDensityField,
-  // so we must include tickets that users might depend on.
+  // user-injected dependencies through MultibodyElement and
+  // ForceDensityFieldBase, so we must include tickets that users might depend
+  // on.
   const std::set<DependencyTicket> force_and_acceleration_prereqs = {
       position_ticket,
       velocity_ticket,

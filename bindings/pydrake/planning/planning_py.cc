@@ -25,10 +25,13 @@ and/or trajectories of dynamical systems.
   internal::DefinePlanningRobotDiagram(m);
   internal::DefinePlanningCollisionCheckerInterfaceTypes(m);
   internal::DefinePlanningCollisionChecker(m);
+  internal::DefinePlanningDofMask(m);
+  internal::DefinePlanningJointLimits(m);
   internal::DefinePlanningGraphAlgorithms(m);
   internal::DefinePlanningTrajectoryOptimization(m);
   internal::DefinePlanningVisibilityGraph(m);
   internal::DefinePlanningIrisFromCliqueCover(m);
+  internal::DefinePlanningIrisCommon(m);
   internal::DefinePlanningIrisZo(m);
   internal::DefinePlanningZmpPlanner(m);
 }

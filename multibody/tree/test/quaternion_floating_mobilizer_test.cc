@@ -113,6 +113,7 @@ TEST_F(QuaternionFloatingMobilizerTest, CalcAcrossMobilizerTransform) {
   mobilizer_->update_X_FM(q, &fast_X_FM);
   EXPECT_TRUE(fast_X_FM.IsNearlyEqualTo(X_FM, kTol));
 
+  TestApplyR_FM(X_FM, *mobilizer_);
   TestPrePostMultiplyByX_FM(X_FM, *mobilizer_);
 }
 
@@ -234,6 +235,19 @@ TEST_F(QuaternionFloatingMobilizerTest, KinematicMapping) {
 
   EXPECT_TRUE(CompareMatrices(Nplus_x_N, MatrixX<double>::Identity(6, 6),
                               kTolerance, MatrixCompareType::relative));
+
+  // Until it is implemented, ensure calculating Ṅ(q,q̇) throws an exception.
+  MatrixX<double> NDot(7, 6);
+  DRAKE_EXPECT_THROWS_MESSAGE(mobilizer_->CalcNDotMatrix(*context_, &NDot),
+                              ".*The function DoCalcNDotMatrix\\(\\) has not "
+                              "been implemented for this mobilizer.*");
+
+  // Until it is implemented, ensure calculating Ṅ⁺(q,q̇) throws an exception.
+  MatrixX<double> NplusDot(6, 7);
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      mobilizer_->CalcNplusDotMatrix(*context_, &NplusDot),
+      ".*The function DoCalcNplusDotMatrix\\(\\) has not "
+      "been implemented for this mobilizer.*");
 }
 
 TEST_F(QuaternionFloatingMobilizerTest, CheckExceptionMessage) {
