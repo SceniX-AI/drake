@@ -79,6 +79,7 @@ void SapDriver<T>::set_sap_solver_parameters(
   sap_parameters_ = parameters;
 }
 
+// This method will be called by `CompliantContactManager`
 template <typename T>
 void SapDriver<T>::DeclareCacheEntries(
     CompliantContactManager<T>* mutable_manager) {
